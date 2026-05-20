@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1920, initial-scale=1">
+  <title>Spotlight - Affichage TV · Corpo Omnes Lyon</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #190038;
+      --accent: #C45EFF;
+      --text: #fff;
+      --muted:  rgba(255,255,255,.55);
+      --duration: 10;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      cursor: none;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body[data-type="Corpo"]       { --type-color: #C45EFF; }
+    body[data-type="BDE"]         { --type-color: #9F9EB7; }
+    body[data-type="Sport"]       { --type-color: #3ECF8E; }
+    body[data-type="RSE"]         { --type-color: #5bd6a0; }
+    body[data-type="Association"] { --type-color: #f87171; }
+
+    .slide {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      transition: opacity .8s ease;
+      pointer-events: none;
+    }
+    .slide.active  { opacity: 1; pointer-events: auto; }
+    .slide.leaving { opacity: 0; }
+
+    .slide__bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 18% 42%, var(--slide-bg, var(--type-bg, rgba(93,2,130,.5))) 0%, transparent 62%),
+        radial-gradient(ellipse at 85% 78%, var(--slide-bg, var(--type-bg, rgba(93,2,130,.35))) 0%, transparent 55%),
+        linear-gradient(135deg, #0D001F 0%, #190038 55%, #220050 100%);
+      z-index: 0;
+      transition: background .6s ease;
+    }
+
+    .slide__stripe {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: .8vw;
+      background: var(--slide-color, var(--type-color, var(--accent)));
+      z-index: 1;
+      transition: background .5s ease;
+    }
+
+    .slide__content {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding: 5vh 8vw 14vh 8vw;
+    }
+
+    .slide__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6vh;
+    }
+    .slide__brand {
+      display: flex;
+      align-items: center;
+      gap: 1.5vw;
+      opacity: .7;
+    }
+    .slide__brand img {
+      height: 6vh;
+      width: auto;
+    }
+    .slide__brand-text {
+      font-size: 1.8vh;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .15em;
+      color: var(--muted);
+    }
+    .slide__clock {
+      font-size: 3.5vh;
+      font-weight: 800;
+      letter-spacing: .06em;
+      font-variant-numeric: tabular-nums;
+      color: var(--muted);
+    }
+
+    .slide__type-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 1vw;
+      background: var(--slide-bg, var(--type-bg, rgba(93,2,130,.3)));
+      border: 2px solid var(--slide-color, var(--type-color, var(--accent)));
+      border-radius: 100px;
+      padding: 1.2vh 2.5vw;
+      font-size: 2vh;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .15em;
+      color: var(--slide-color, var(--type-color, var(--accent)));
+      margin-bottom: 4vh;
+      width: fit-content;
+    }
+
+    .slide__icon {
+      font-size: 12vh;
+      line-height: 1;
+      margin-bottom: 3vh;
+      filter: drop-shadow(0 0 3vw var(--slide-color, var(--type-color, var(--accent))));
+    }
+
+    .slide__title {
+      font-size: 10vh;
+      font-weight: 900;
+      line-height: 1.05;
+      letter-spacing: -.02em;
+      text-shadow: 0 4px 40px rgba(0,0,0,.5);
+      margin-bottom: 4vh;
+      max-width: 75vw;
+    }
+
+    .slide__meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3vw;
+      margin-bottom: 4vh;
+    }
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 1vw;
+    }
+    .meta-item__icon { font-size: 3.5vh; }
+    .meta-item__content {}
+    .meta-item__label {
+      font-size: 1.6vh;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      color: var(--muted);
+      line-height: 1;
+    }
+    .meta-item__value {
+      font-size: 3.2vh;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .slide__desc {
+      font-size: 2.8vh;
+      color: rgba(255,255,255,.8);
+      line-height: 1.6;
+      max-width: 70vw;
+      border-left: 4px solid var(--slide-color, var(--type-color, var(--accent)));
+      padding-left: 2.5vw;
+    }
+
+    .slide__cta {
+      margin-top: 3vh;
+      display: inline-flex;
+      align-items: center;
+      gap: 1vw;
+      background: var(--slide-color, var(--type-color, var(--accent)));
+      color: #fff;
+      font-size: 2.2vh;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      padding: 1.5vh 3vw;
+      border-radius: 100px;
+      width: fit-content;
+    }
+
+    .slide__qr-row {
+      position: absolute;
+      right: 4vw;
+      bottom: calc(5.5vh + 0.6vh + 2.2vh);
+      display: flex;
+      justify-content: flex-end;
+      align-items: flex-end;
+      z-index: 5;
+    }
+    .slide__qr {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.2vh;
+      padding: 1.4vh 1.4vw 1.6vh;
+      background: rgba(255,255,255,.08);
+      border-radius: 1.4vh;
+      box-shadow: 0 0.6vh 2.4vh rgba(0,0,0,.4);
+    }
+    .slide__qr-label {
+      font-size: 1.35vh;
+      font-weight: 800;
+      color: rgba(255,255,255,.85);
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      text-align: center;
+      max-width: 28vh;
+      line-height: 1.25;
+    }
+    .slide__qr-img {
+      display: block;
+      width: min(22vh, 20vw);
+      height: auto;
+      aspect-ratio: 1;
+      image-rendering: pixelated;
+    }
+
+    .tv-dots {
+      position: fixed;
+      right: 4vw;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 1.5vh;
+      z-index: 100;
+    }
+    .tv-dot {
+      width: 1.2vh;
+      height: 1.2vh;
+      border-radius: 50%;
+      background: rgba(255,255,255,.25);
+      transition: background .4s, transform .4s;
+    }
+    .tv-dot.active {
+      background: var(--slide-color, var(--accent));
+      transform: scale(1.5);
+    }
+
+    .tv-progress {
+      position: fixed;
+      bottom: 5.5vh;
+      left: 0; right: 0;
+      height: .6vh;
+      background: rgba(255,255,255,.1);
+      z-index: 100;
+    }
+    .tv-progress__bar {
+      height: 100%;
+      background: var(--slide-color, var(--type-color, var(--accent)));
+      width: 0%;
+      transition: background .5s;
+    }
+
+    .tv-footer {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 5.5vh;
+      background: rgba(13,0,31,.95);
+      border-top: 1px solid rgba(196,94,255,.2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 5vw;
+      z-index: 100;
+    }
+    .tv-footer__left {
+      font-size: 1.8vh;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: .06em;
+    }
+    .tv-footer__counter {
+      font-size: 2vh;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: .05em;
+    }
+    .tv-footer__right {
+      font-size: 1.8vh;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .tv-empty {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4vh;
+      background: var(--bg);
+    }
+    .tv-empty__icon { font-size: 12vh; opacity: .4; }
+    .tv-empty__text {
+      font-size: 5vh;
+      font-weight: 800;
+      color: var(--muted);
+      letter-spacing: .05em;
+    }
+  </style>
+</head>
+<body data-type="Corpo">
+
+    <div class="tv-dots" id="tv-dots"></div>
+
+    <div class="tv-progress">
+    <div class="tv-progress__bar" id="progress-bar"></div>
+  </div>
+
+    <div class="tv-footer">
+    <div class="tv-footer__left">
+      corpoomnes@gmail.com &nbsp;·&nbsp; @copro_omnes
+    </div>
+    <div class="tv-footer__counter" id="footer-counter">1 / -</div>
+    <div class="tv-footer__right" id="footer-campus">
+      ECE &nbsp;·&nbsp; ESCE &nbsp;·&nbsp; HEIP &nbsp;·&nbsp; INSEEC &nbsp;·&nbsp; Sup de Pub
+    </div>
+  </div>
+
+  <script src="js/tv-filters.js?v=20260519"></script>
+  <script>
+    const SLIDE_DURATION = 10000;
+    const FADE_DURATION  =   800;
+
+    const tvFilters = TvFilters.parseParams();
+    const footerLabel = tvFilters.ecoleLabel || tvFilters.ecole || tvFilters.campusLabel;
+    if (footerLabel) {
+      document.getElementById('footer-campus').textContent = footerLabel;
+    }
+
+    const JOURS  = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+    const MOIS_L = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+
+    function pad(n) { return String(n).padStart(2,'0'); }
+
+    function updateClocks() {
+      const now = new Date();
+      document.querySelectorAll('.slide__clock').forEach(el => {
+        el.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      });
+    }
+    setInterval(updateClocks, 1000);
+
+    function formatDate(dateStr) {
+      const d = new Date(dateStr);
+      return `${JOURS[d.getDay()]} ${d.getDate()} ${MOIS_L[d.getMonth()]} ${d.getFullYear()}`;
+    }
+
+    function eventPublicPageUrl(ev) {
+      const id = parseInt(ev.id, 10) || 0;
+      return new URL('evenement.php?id=' + id, location.href).href;
+    }
+
+    function spotlightQrImageSrc(ev) {
+      const api = new URL('api/qr-image.php', location.href);
+      api.searchParams.set('p', eventPublicPageUrl(ev));
+      api.searchParams.set('s', '320');
+      return api.href;
+    }
+
+    function buildSlide(ev, idx, total) {
+      const ctaHtml = ev.inscriptions
+        ? `<div class="slide__cta">Inscriptions ouvertes${ev.places ? ` · ${ev.places} places` : ''}</div>`
+        : '';
+      const qrSrc = spotlightQrImageSrc(ev);
+      const { color, bg } = TvFilters.structureSpotlightColors(ev);
+      const slideStyle = '--slide-color:' + color + ';--slide-bg:' + bg + ';';
+
+      return `
+        <div class="slide" data-type="${ev.type}" id="slide-${idx}" style="${slideStyle}">
+          <div class="slide__bg"></div>
+          <div class="slide__stripe"></div>
+          <div class="slide__content">
+
+            <div class="slide__header">
+              <div class="slide__brand">
+                <img src="images/logo-corpo-omnes.png" alt="">
+              </div>
+              <div class="slide__clock">${pad(new Date().getHours())}:${pad(new Date().getMinutes())}</div>
+            </div>
+
+            <div class="slide__type-badge">
+              ${ev.type} - ${ev.organisateur}${ev.organisateur_ecole ? ' · ' + ev.organisateur_ecole : ''}
+            </div>
+
+            <h1 class="slide__title">${ev.titre}</h1>
+
+            <div class="slide__meta">
+              <div class="meta-item">
+                <div class="meta-item__content">
+                  <div class="meta-item__label">Date</div>
+                  <div class="meta-item__value">${formatDate(ev.date)}</div>
+                </div>
+              </div>
+              <div class="meta-item">
+                <div class="meta-item__content">
+                  <div class="meta-item__label">Heure</div>
+                  <div class="meta-item__value">${ev.heure || '-'}</div>
+                </div>
+              </div>
+              <div class="meta-item">
+                <div class="meta-item__content">
+                  <div class="meta-item__label">Lieu</div>
+                  <div class="meta-item__value">${ev.lieu}</div>
+                </div>
+              </div>
+              <div class="meta-item">
+                <div class="meta-item__content">
+                  <div class="meta-item__label">Campus</div>
+                  <div class="meta-item__value">${ev.campus}</div>
+                </div>
+              </div>
+            </div>
+
+            ${ctaHtml}
+
+          </div>
+          <div class="slide__qr-row">
+            <div class="slide__qr">
+              <div class="slide__qr-label">Scanner · page de l’événement</div>
+              <img class="slide__qr-img" src="${qrSrc}" width="320" height="320" alt="" decoding="async" loading="lazy">
+            </div>
+          </div>
+        </div>`;
+    }
+
+    async function init() {
+      let events = [];
+      try {
+        const params = new URLSearchParams();
+        params.set('mode', 'spotlight');
+        TvFilters.appendApiParams(params, tvFilters);
+        const res = await fetch('api/tv-evenements.php?' + params.toString());
+        if (res.ok) events = await res.json();
+      } catch (_) {  }
+
+      events = events.filter((ev) => TvFilters.matchTvEvent(ev, tvFilters));
+
+      events.sort((a, b) => {
+        const sa = typeof a.tv_sort_score === 'number' ? a.tv_sort_score : 0;
+        const sb = typeof b.tv_sort_score === 'number' ? b.tv_sort_score : 0;
+        if (sb !== sa) return sb - sa;
+        return new Date(a.date) - new Date(b.date);
+      });
+
+      if (!events.length) {
+        document.body.innerHTML = `
+          <div class="tv-empty">
+            <div class="tv-empty__icon">📅</div>
+            <div class="tv-empty__text">Aucun événement à venir</div>
+          </div>`;
+        return;
+      }
+
+      const container = document.body;
+      events.forEach((ev, i) => {
+        container.insertAdjacentHTML('afterbegin', buildSlide(ev, i, events.length));
+      });
+
+      const dotsEl = document.getElementById('tv-dots');
+      dotsEl.innerHTML = events.map((_,i) =>
+        `<div class="tv-dot${i===0?' active':''}" id="dot-${i}"></div>`
+      ).join('');
+
+      function applySlideColors(ev, slideEl) {
+        const { color, bg } = TvFilters.structureSpotlightColors(ev);
+        if (slideEl) {
+          slideEl.style.setProperty('--slide-color', color);
+          slideEl.style.setProperty('--slide-bg', bg);
+        }
+        const bar = document.getElementById('progress-bar');
+        if (bar) bar.style.background = color;
+        document.querySelectorAll('.tv-dot').forEach((dot) => {
+          dot.style.background = '';
+          dot.style.transform = '';
+        });
+        const activeDot = document.getElementById('dot-' + current);
+        if (activeDot) {
+          activeDot.style.background = color;
+          activeDot.style.transform = 'scale(1.5)';
+        }
+      }
+
+      let current = 0;
+      let progStart = null;
+      let progRaf   = null;
+
+      function showSlide(idx) {
+
+        const prev = document.getElementById(`slide-${current}`);
+        if (prev) prev.classList.remove('active');
+        document.getElementById(`dot-${current}`)?.classList.remove('active');
+
+        current = (idx + events.length) % events.length;
+        const ev = events[current];
+
+        const slide = document.getElementById(`slide-${current}`);
+        slide.classList.add('active');
+        document.getElementById(`dot-${current}`).classList.add('active');
+
+        document.getElementById('footer-counter').textContent =
+          `${current + 1} / ${events.length}`;
+
+        applySlideColors(ev, slide);
+
+        clearTimeout(progRaf);
+        const bar = document.getElementById('progress-bar');
+        bar.style.transition = 'none';
+        bar.style.width = '0%';
+
+        void bar.offsetWidth;
+        bar.style.transition = `width ${SLIDE_DURATION}ms linear`;
+        bar.style.width = '100%';
+      }
+
+      function advance() {
+        showSlide(current + 1);
+        progRaf = setTimeout(advance, SLIDE_DURATION);
+      }
+
+      showSlide(0);
+      progRaf = setTimeout(advance, SLIDE_DURATION);
+
+      updateClocks();
+    }
+
+    init();
+
+    setInterval(() => location.reload(), 5 * 60 * 1000);
+  </script>
+</body>
+</html>

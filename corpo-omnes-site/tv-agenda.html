@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1920, initial-scale=1">
+  <title>Agenda - Affichage TV · Corpo Omnes Lyon</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #190038;
+      --bg-mid: #220050;
+      --surface:  rgba(255,255,255,.06);
+      --border:   rgba(255,255,255,.08);
+      --accent: #C45EFF;
+      --green: #3ECF8E;
+      --text: #fff;
+      --muted:    rgba(255,255,255,.5);
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      cursor: none;
+      user-select: none;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .tv-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 5vw;
+      height: 13vh;
+      background: linear-gradient(135deg, rgba(93,2,130,.6) 0%, rgba(13,0,31,.9) 100%);
+      border-bottom: 3px solid var(--accent);
+      flex-shrink: 0;
+    }
+
+    .tv-brand {
+      display: flex;
+      align-items: center;
+      gap: 2vw;
+    }
+    .tv-brand img {
+      height: 9vh;
+      width: auto;
+    }
+    .tv-brand__name {
+      font-size: 3.2vh;
+      font-weight: 900;
+      letter-spacing: .02em;
+      line-height: 1.1;
+    }
+    .tv-brand__sub {
+      font-size: 1.8vh;
+      color: var(--accent);
+      font-weight: 500;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+    }
+
+    .tv-header__label {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .5vh;
+    }
+    .tv-header__icon { font-size: 4vh; }
+    .tv-header__title {
+      font-size: 2.8vh;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .2em;
+      color: var(--accent);
+    }
+
+    .tv-clock {
+      text-align: right;
+    }
+    .tv-clock__time {
+      font-size: 6.5vh;
+      font-weight: 800;
+      letter-spacing: .06em;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    .tv-clock__date {
+      font-size: 1.9vh;
+      color: var(--muted);
+      margin-top: .5vh;
+    }
+
+    .tv-cols {
+      display: grid;
+      grid-template-columns: 11vw 8vw 1fr 20vw;
+      gap: 0;
+      padding: 1.5vh 5vw;
+      background: rgba(93,2,130,.25);
+      border-bottom: 1px solid rgba(196,94,255,.2);
+    }
+    .tv-cols span {
+      font-size: 1.5vh;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .15em;
+      color: var(--muted);
+    }
+
+    .tv-viewport {
+      height: calc(87vh - 5.5vh);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .tv-track {
+      will-change: transform;
+    }
+
+    .ev-row {
+      display: grid;
+      grid-template-columns: 11vw 8vw 1fr 20vw;
+      gap: 0;
+      align-items: center;
+      padding: 2.4vh 5vw;
+      border-bottom: 1px solid var(--border);
+      transition: background .3s;
+    }
+    .ev-row:nth-child(even):not(.ev-row--school) { background: rgba(255,255,255,.025); }
+    .ev-row--school { border-left: 4px solid var(--school-color, var(--accent)); }
+    .ev-row--school.ev-row--today {
+      box-shadow: inset 0 0 0 1px var(--school-color, var(--accent));
+    }
+    .ev-row--today:not(.ev-row--school) {
+      background: rgba(196,94,255,.07) !important;
+      border-left: 4px solid var(--accent);
+    }
+
+    .ev-date {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .ev-date__day {
+      font-size: 5.5vh;
+      font-weight: 900;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .ev-date__month {
+      font-size: 1.8vh;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--muted);
+      margin-top: .2vh;
+    }
+    .ev-date__year {
+      font-size: 1.4vh;
+      color: var(--muted);
+    }
+
+    .ev-time {
+      font-size: 2.8vh;
+      font-weight: 700;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .ev-icon { font-size: 4vh; }
+
+    .ev-info {}
+    .ev-title {
+      font-size: 3.4vh;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+    .ev-location {
+      font-size: 2vh;
+      color: var(--muted);
+      margin-top: .6vh;
+    }
+
+    .ev-badge {
+      text-align: right;
+    }
+    .badge {
+      display: inline-block;
+      padding: 1vh 1.8vw;
+      border-radius: 100px;
+      font-size: 1.8vh;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      line-height: 1;
+    }
+    .badge--corpo { background:rgba(196,94,255,.15); color: #C45EFF; }
+    .badge--bde   { background:rgba(110,108,176,.15); color: #9F9EB7; }
+    .badge--sport { background:rgba(62,207,142,.15);  color: #3ECF8E; }
+    .badge--rse   { background:rgba(62,207,142,.1);   color: #5bd6a0; }
+    .badge--asso  { background:rgba(229,37,33,.15);   color: #f87171; }
+
+    .tv-ticker {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 5.5vh;
+      background: linear-gradient(90deg, var(--accent) 0%, rgba(13,0,31,.95) 50%, var(--accent) 100%);
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      border-top: 2px solid rgba(196,94,255,.4);
+    }
+    .tv-ticker__label {
+      flex-shrink: 0;
+      background: var(--accent);
+      color: #fff;
+      font-size: 1.8vh;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      padding: 0 2vw;
+      height: 100%;
+      display: flex;
+      align-items: center;
+    }
+    .tv-ticker__scroll {
+      flex: 1;
+      overflow: hidden;
+    }
+    .tv-ticker__text {
+      white-space: nowrap;
+      font-size: 2.2vh;
+      font-weight: 600;
+      color: rgba(255,255,255,.9);
+      letter-spacing: .04em;
+      animation: tickerScroll 35s linear infinite;
+    }
+    @keyframes tickerScroll {
+      from { transform: translateX(100vw); }
+      to   { transform: translateX(-100%); }
+    }
+
+    .today-tag {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      font-size: 1.4vh;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      padding: .3vh .8vw;
+      border-radius: 4px;
+      margin-left: 1vw;
+      vertical-align: middle;
+    }
+
+    body.tv-has-school {
+      --accent: var(--school-theme, #C45EFF);
+    }
+    body.tv-has-school .tv-header {
+      background: linear-gradient(135deg, var(--school-strong) 0%, rgba(13, 0, 31, .96) 100%);
+      border-bottom-color: var(--school-theme);
+    }
+    body.tv-has-school .tv-header__title {
+      color: var(--school-theme);
+    }
+    body.tv-has-school .tv-cols {
+      background: var(--school-soft);
+      border-bottom-color: var(--school-muted);
+    }
+    body.tv-has-school .ev-date__day {
+      color: var(--school-theme) !important;
+    }
+    body.tv-has-school .tv-ticker {
+      background: linear-gradient(90deg, var(--school-theme) 0%, var(--school-strong) 50%, var(--school-theme) 100%);
+      border-top-color: var(--school-muted);
+    }
+    body.tv-has-school .tv-ticker__label {
+      background: var(--school-theme);
+    }
+    body.tv-has-school .today-tag {
+      background: var(--school-theme);
+    }
+    body.tv-has-school .ev-row--school.ev-row--today {
+      box-shadow: inset 0 0 0 1px var(--school-theme);
+    }
+    body.tv-has-school .ev-row--today:not(.ev-row--school) {
+      background: var(--school-soft) !important;
+      border-left-color: var(--school-theme);
+    }
+  </style>
+</head>
+<body>
+
+    <header class="tv-header">
+    <div class="tv-brand">
+      <img src="images/logo-corpo-omnes.png" alt="Corpo Omnes Lyon">
+    </div>
+
+    <div class="tv-header__label">
+      <span class="tv-header__title" id="header-title">Agenda des événements</span>
+    </div>
+
+    <div class="tv-clock">
+      <div class="tv-clock__time" id="clock-time">--:--</div>
+      <div class="tv-clock__date" id="clock-date">Chargement…</div>
+    </div>
+  </header>
+
+    <div class="tv-cols">
+    <span>Date</span>
+    <span>Heure</span>
+    <span>Événement &amp; Lieu</span>
+    <span style="text-align:right">Organisateur</span>
+  </div>
+
+    <div class="tv-viewport">
+    <div class="tv-track" id="tv-track">
+          </div>
+  </div>
+
+    <div class="tv-ticker">
+    <div class="tv-ticker__label">À l'affiche</div>
+    <div class="tv-ticker__scroll">
+      <div class="tv-ticker__text" id="ticker-text">
+        Corpo Omnes Lyon &nbsp;·&nbsp; ECE &nbsp;·&nbsp; ESCE &nbsp;·&nbsp; HEIP &nbsp;·&nbsp; INSEEC &nbsp;·&nbsp; Sup de Pub &nbsp;·&nbsp;
+        Campus Citroën &amp; Campus Citadelle &nbsp;·&nbsp; 6 000 étudiants &nbsp;·&nbsp; 31 associations &nbsp;·&nbsp;
+        corpoomnes@gmail.com &nbsp;·&nbsp; @corpo_omnes &nbsp;·&nbsp;
+      </div>
+    </div>
+  </div>
+
+  <script src="js/tv-filters.js?v=20260519"></script>
+  <script>
+    const JOURS  = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+    const MOIS_L = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+    const MOIS_C = ['jan.','fév.','mar.','avr.','mai','juin','juil.','août','sep.','oct.','nov.','déc.'];
+    const TYPE_BADGE = { Corpo:'badge--corpo', BDE:'badge--bde', Sport:'badge--sport', RSE:'badge--rse', Association:'badge--asso' };
+
+    const tvFilters = TvFilters.parseParams();
+    if (tvFilters.campusLabel) {
+      document.getElementById('header-title').textContent = 'Agenda - ' + tvFilters.campusLabel;
+    } else if (tvFilters.ecoleLabel) {
+      document.getElementById('header-title').textContent = 'Agenda - ' + tvFilters.ecoleLabel;
+      TvFilters.applySchoolThemeToDocument(tvFilters.ecole);
+    }
+
+    function pad(n) { return String(n).padStart(2,'0'); }
+
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clock-time').textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      document.getElementById('clock-date').textContent =
+        `${JOURS[now.getDay()]} ${now.getDate()} ${MOIS_L[now.getMonth()]} ${now.getFullYear()}`;
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    function isToday(dateStr) {
+      const now = new Date(), d = new Date(dateStr);
+      return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }
+
+    const schoolFilterActive = Boolean(tvFilters.ecole);
+    const schoolColor = schoolFilterActive ? TvFilters.ecoleColor(tvFilters.ecole) : null;
+
+    function buildRow(ev, rowIndex) {
+      const d        = new Date(ev.date);
+      const today    = isToday(ev.date);
+      const badgeCls = TYPE_BADGE[ev.type] || 'badge--corpo';
+      const todayTag = today ? '<span class="today-tag">Aujourd\'hui</span>' : '';
+      let rowClass = 'ev-row';
+      let rowStyle = '';
+      if (schoolFilterActive && schoolColor) {
+        rowClass += ' ev-row--school';
+        rowStyle = ' style="background:' + TvFilters.ecoleRowBackground(tvFilters.ecole, rowIndex) + ';--school-color:' + schoolColor + '"';
+        if (today) rowClass += ' ev-row--today';
+      } else if (today) {
+        rowClass += ' ev-row--today';
+      }
+      const dateAccent = schoolFilterActive && schoolColor ? ' style="color:' + schoolColor + '"' : '';
+      return `
+        <div class="${rowClass}"${rowStyle}>
+          <div class="ev-date">
+            <div class="ev-date__day"${dateAccent}>${d.getDate()}</div>
+            <div class="ev-date__month">${MOIS_C[d.getMonth()]}</div>
+            <div class="ev-date__year">${d.getFullYear()}</div>
+          </div>
+          <div class="ev-time">${ev.heure || '-'}</div>
+          <div class="ev-info">
+            <div class="ev-title">${ev.titre}${todayTag}</div>
+            <div class="ev-location">${ev.lieu}</div>
+          </div>
+          <div class="ev-badge">
+            <span class="badge ${badgeCls}">${ev.organisateur}</span>
+            ${ev.organisateur_ecole ? `<div style="font-size:1.5vh;color:var(--muted);margin-top:.5vh;text-align:right">${ev.organisateur_ecole}</div>` : ''}
+          </div>
+        </div>`;
+    }
+
+    function startScroll(events) {
+      const track    = document.getElementById('tv-track');
+      const rowsHtml = events.map((ev, i) => buildRow(ev, i)).join('');
+      track.innerHTML = rowsHtml;
+
+      const viewH = track.parentElement.clientHeight;
+      if (track.scrollHeight > viewH) {
+        track.innerHTML += rowsHtml;
+        const singleH = track.scrollHeight / 2;
+        let pos = 0;
+        (function step() {
+          pos += 0.6;
+          if (pos >= singleH) pos = 0;
+          track.style.transform = `translateY(-${pos}px)`;
+          requestAnimationFrame(step);
+        })();
+      }
+
+      document.getElementById('ticker-text').innerHTML =
+        events.map(ev => `${ev.titre} - ${ev.lieu}`).join('&nbsp;&nbsp;·&nbsp;&nbsp;') +
+        '&nbsp;&nbsp;·&nbsp;&nbsp;corpoomnes@gmail.com&nbsp;&nbsp;·&nbsp;&nbsp;@corpo_omnes&nbsp;&nbsp;·&nbsp;&nbsp;';
+    }
+
+    async function loadAndRender() {
+      let events = [];
+      try {
+        const params = new URLSearchParams();
+        TvFilters.appendApiParams(params, tvFilters);
+        const res = await fetch('api/tv-evenements.php?' + params.toString());
+        if (res.ok) events = await res.json();
+      } catch (_) {  }
+
+      if (tvFilters.ecoleInvalid) {
+        document.getElementById('tv-track').innerHTML =
+          '<div style="padding:8vh 5vw;font-size:3vh;color:rgba(255,255,255,.45);text-align:center">École non reconnue.<br>Utilisez : ECE, ESCE, HEIP, INSEEC ou Sup de Pub.</div>';
+        return;
+      }
+
+      events = events.filter((ev) => TvFilters.matchTvEvent(ev, tvFilters));
+
+      if (!events.length) {
+        document.getElementById('tv-track').innerHTML =
+          '<div style="padding:8vh 5vw;font-size:4vh;color:rgba(255,255,255,.3);text-align:center">Aucun événement publié pour ce filtre</div>';
+        return;
+      }
+
+      events.sort((a, b) => new Date(a.date) - new Date(b.date));
+      startScroll(events);
+    }
+
+    loadAndRender();
+
+    setInterval(() => location.reload(), 5 * 60 * 1000);
+  </script>
+</body>
+</html>

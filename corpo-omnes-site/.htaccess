@@ -1,0 +1,31 @@
+# ============================================================
+# Corpo Omnes - Configuration Apache de la racine du site
+# ============================================================
+
+# Bloque l'accès HTTP à tout fichier .env, où qu'il soit servi par Apache.
+<FilesMatch "^\.env(\..*)?$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Bloque aussi les fichiers de logs / dumps qui pourraient traîner.
+<FilesMatch "\.(log|sql|sqlite|db|ini|bak)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Page d'accueil par défaut
+DirectoryIndex index.php index.html
+
+# Empêche le listing des dossiers
+Options -Indexes

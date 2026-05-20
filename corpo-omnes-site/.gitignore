@@ -1,0 +1,15 @@
+# Secrets et config locale
+.env
+includes/.env
+
+# Logs et uploads sensibles
+logs/
+images/justificatifs/*
+!images/justificatifs/.htaccess
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
