@@ -1,4 +1,6 @@
 <?php
+// façade mail PHPMailer + Gmail SMTP
+// si MAIL_ENABLED=0 ou pas de mot de passe SMTP → on log sans envoyer (pratique en dev)
 
 require_once __DIR__ . '/env.php';
 
@@ -12,6 +14,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception as PHPMailerException;
 
+// log dans un fichier texte
 function corpo_mail_log_path(): string {
     $dir = __DIR__ . '/../logs';
     if (!is_dir($dir)) {
@@ -25,6 +28,60 @@ function corpo_mail_log(string $msg): void {
     @file_put_contents(corpo_mail_log_path(), $line, FILE_APPEND);
 }
 
+// quota configurable via MAIL_DAILY_LIMIT dans le .env
+function corpo_mail_daily_limit(): int
+{
+    return max(1, (int)corpo_env('MAIL_DAILY_LIMIT', 300));
+}
+
+// compte les mails envoyés depuis le log pour le quota
+function corpo_mail_quota_stats(?string $logPath = null): array
+{
+    $limit = corpo_mail_daily_limit();
+    $today = date('Y-m-d');
+    $cut7  = date('Y-m-d', strtotime('-6 days'));
+    $cut30 = date('Y-m-d', strtotime('-29 days'));
+    $sentToday = 0;
+    $sent7     = 0;
+    $sent30    = 0;
+
+    $path = $logPath ?? corpo_mail_log_path();
+    if (is_file($path)) {
+        $fh = @fopen($path, 'r');
+        if ($fh) {
+            while (($ln = fgets($fh)) !== false) {
+                if (!preg_match('/^\[(\d{4}-\d{2}-\d{2})/', $ln, $m)) {
+                    continue;
+                }
+                $day = $m[1];
+                if (!str_contains($ln, '[OK]')) {
+                    continue;
+                }
+                if ($day === $today) {
+                    $sentToday++;
+                }
+                if ($day >= $cut7) {
+                    $sent7++;
+                }
+                if ($day >= $cut30) {
+                    $sent30++;
+                }
+            }
+            fclose($fh);
+        }
+    }
+
+    return [
+        'limit'            => $limit,
+        'sent_today'       => $sentToday,
+        'remaining_today'  => max(0, $limit - $sentToday),
+        'sent_7d'          => $sent7,
+        'sent_30d'         => $sent30,
+        'date_today'       => $today,
+    ];
+}
+
+// on vérifie si le mail est actif et configuré
 function corpo_mail_enabled(): bool {
     if ((string)corpo_env('MAIL_ENABLED', '0') !== '1') return false;
     $pass = (string)corpo_env('MAIL_SMTP_PASS', '');
@@ -42,6 +99,7 @@ function corpo_mail_app_url(string $relative = ''): string {
     return $rel === '' ? $base : ($base . '/' . $rel);
 }
 
+// templates HTML pour les mails
 function corpo_mail_layout(string $title, string $bodyHtml, ?string $ctaUrl = null, ?string $ctaLabel = null): string {
     $logoUrl = corpo_mail_app_url('images/logo-corpo-omnes.png');
     $year    = date('Y');
@@ -77,6 +135,13 @@ function corpo_mail_layout(string $title, string $bodyHtml, ?string $ctaUrl = nu
         . '</table></td></tr></table></body></html>';
 }
 
+/**
+ * Convertit un HTML en équivalent texte propre (pour l'AltBody).
+ * - Remplace <br>/<p>/<li> par des sauts de ligne
+ * - Strip les autres tags
+ * - Décode les entités HTML (&#039; → ', &amp; → &, &nbsp; → espace, etc.)
+ *   sinon les clients mail qui affichent l'AltBody montrent du "d&#039;hier".
+ */
 function corpo_mail_html_to_text(string $html): string {
     $s = preg_replace('#<\s*br\s*/?>#i', "\n", $html);
     $s = preg_replace('#</\s*(p|div|li|tr|h[1-6])\s*>#i', "\n", (string)$s);
@@ -87,6 +152,7 @@ function corpo_mail_html_to_text(string $html): string {
     return trim((string)$s);
 }
 
+// envoi réel via PHPMailer
 function corpo_mail_send(
     string $to,
     string $subject,
@@ -117,6 +183,8 @@ function corpo_mail_send(
         $mail->CharSet    = 'UTF-8';
         $mail->Encoding   = 'base64';
 
+        // Mode debug optionnel : MAIL_DEBUG=1 dans .env → on capture la conversation
+        // SMTP complète dans logs/mail.log (utile pour diagnostiquer Brevo/Gmail).
         if ((string)corpo_env('MAIL_DEBUG', '0') === '1') {
             $mail->SMTPDebug   = SMTP::DEBUG_CONNECTION;
             $mail->Debugoutput = function ($str, $level) {
@@ -132,7 +200,10 @@ function corpo_mail_send(
         $mail->AltBody = $altBody ?: corpo_mail_html_to_text($htmlBody);
 
         foreach ($attachments as $att) {
-
+            // $att peut être :
+            //  - normal : ['path'|'data', 'name', 'mime']
+            //  - inline : ['path'|'data', 'name', 'mime', 'cid' => '...']
+            //    → la pièce devient une image embarquée, référençable via <img src="cid:...">
             $name = (string)($att['name'] ?? 'piece-jointe');
             $mime = (string)($att['mime'] ?? 'application/octet-stream');
             $cid  = (string)($att['cid']  ?? '');
@@ -162,8 +233,9 @@ function corpo_mail_send(
     }
 }
 
+// génération des tokens pour vérif email et reset mdp
 function corpo_mail_make_token(): array {
-    $raw  = bin2hex(random_bytes(32));
+    $raw  = bin2hex(random_bytes(32));      // 64 hex chars
     $hash = hash('sha256', $raw);
     return [$raw, $hash];
 }
@@ -189,6 +261,7 @@ function corpo_mail_create_password_reset(PDO $pdo, int $userId, int $hours = 1)
     return $raw;
 }
 
+// fonctions d'envoi de mails spécifiques au site
 function corpo_mail_send_verification(PDO $pdo, array $user): bool {
     $token = corpo_mail_create_verification($pdo, (int)$user['id'], 24);
     $url   = corpo_mail_app_url('verify-email.php?token=' . $token);
@@ -228,16 +301,30 @@ function corpo_mail_send_password_reset(PDO $pdo, array $user): bool {
     );
 }
 
+/**
+ * Envoie un mail "billet" avec :
+ *   - corps HTML stylé (QR inline)
+ *   - PDF en pièce jointe
+ *
+ * @param array $billets  Liste d'inscriptions (rows DB) à envoyer dans le même mail.
+ * @param array $event    Ligne `evenements`.
+ * @param string $to      Email destinataire.
+ */
 function corpo_mail_send_tickets(array $billets, array $event, string $to, ?string $toName = null): bool {
-    if (empty($billets)) return false;
+    $billets = array_values(array_filter($billets, static function (array $b): bool {
+        return ($b['statut'] ?? '') === 'confirme' && !empty($b['qr_token']);
+    }));
+    if (empty($billets)) {
+        return false;
+    }
     require_once __DIR__ . '/ticket-pdf.php';
     require_once __DIR__ . '/billetterie.php';
 
     $nbBillets = count($billets);
     $title = htmlspecialchars((string)$event['titre']);
-    try {
-        $dateFmt = !empty($event['date']) ? (new DateTime($event['date']))->format('l j F Y') : '';
-    } catch (Throwable $e) { $dateFmt = (string)($event['date'] ?? ''); }
+    $dateFmt = function_exists('corpo_format_date_long')
+        ? corpo_format_date_long((string)($event['date'] ?? ''), true)
+        : (string)($event['date'] ?? '');
     $heure = htmlspecialchars((string)($event['heure'] ?? ''));
     $lieu  = htmlspecialchars((string)($event['lieu']  ?? ''));
 
@@ -252,6 +339,8 @@ function corpo_mail_send_tickets(array $billets, array $event, string $to, ?stri
             'en_attente'    => '⏳ En attente',
         ][$stat] ?? $stat;
 
+        // QR : on génère un PNG inline (cid) car Gmail/Outlook/Apple Mail bloquent
+        // les SVG distants et la plupart des images data:.
         $qrImgTag = '';
         if (!empty($b['qr_token'])) {
             $qrData = function_exists('billet_qr_payload')
@@ -319,6 +408,132 @@ function corpo_mail_send_tickets(array $billets, array $event, string $to, ?stri
         ($nbBillets === 1 ? 'Ton billet' : "Tes $nbBillets billets") . ' - ' . (string)$event['titre'],
         $html,
         $attachments,
+        $toName
+    );
+}
+
+/**
+ * Mail envoyé quand une place se libère et que le participant passe de la file à « confirmé ».
+ * Billetterie payante : lien pour finaliser le paiement. Gratuit : envoi du billet QR.
+ */
+function corpo_mail_send_waitlist_promoted(PDO $pdo, int $inscriptionId): bool
+{
+    require_once __DIR__ . '/billetterie.php';
+
+    $st = $pdo->prepare(
+        'SELECT i.*, e.titre, e.date, e.heure, e.lieu, e.mode_inscription, e.prix, e.slug
+           FROM inscriptions_evenement i
+           JOIN evenements e ON e.id = i.evenement_id
+          WHERE i.id = ?'
+    );
+    $st->execute([$inscriptionId]);
+    $ins = $st->fetch();
+    if (!$ins || ($ins['statut'] ?? '') !== 'confirme') {
+        return false;
+    }
+
+    $event = [
+        'id'               => (int)$ins['evenement_id'],
+        'titre'            => $ins['titre'],
+        'date'             => $ins['date'],
+        'heure'            => $ins['heure'],
+        'lieu'             => $ins['lieu'],
+        'mode_inscription' => $ins['mode_inscription'],
+        'prix'             => $ins['prix'],
+        'slug'             => $ins['slug'] ?? '',
+    ];
+
+    $to = trim((string)($ins['email'] ?? ''));
+    if ($to === '' && !empty($ins['user_id'])) {
+        $u = $pdo->prepare('SELECT email, prenom, nom FROM users WHERE id = ?');
+        $u->execute([(int)$ins['user_id']]);
+        $row = $u->fetch();
+        if ($row) {
+            $to = (string)$row['email'];
+            $ins['prenom'] = $ins['prenom'] ?: ($row['prenom'] ?? '');
+            $ins['nom']    = $ins['nom']    ?: ($row['nom']    ?? '');
+        }
+    }
+    if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        return false;
+    }
+
+    $name = trim(($ins['prenom'] ?? '') . ' ' . ($ins['nom'] ?? ''));
+    $mode = function_exists('evt_normalize_mode')
+        ? evt_normalize_mode($ins['mode_inscription'] ?? '')
+        : (string)($ins['mode_inscription'] ?? '');
+    $isPaid = function_exists('evt_mode_is_paid') && evt_mode_is_paid($mode);
+    $paiement = (string)($ins['paiement_statut'] ?? 'aucun');
+    $needsPayment = $isPaid && (float)($ins['prix_paye'] ?? 0) <= 0
+        && $paiement !== 'paye' && (float)($event['prix'] ?? 0) > 0;
+
+    if ($needsPayment) {
+        $title = htmlspecialchars((string)$event['titre']);
+        $evtUrl = corpo_mail_app_url('evenement.php?id=' . (int)$event['id']);
+        $body = '<p>Bonne nouvelle : une place s\'est libérée pour <strong>' . $title . '</strong>.</p>'
+              . '<p>Tu es maintenant <strong>inscrit·e</strong>. Pour recevoir ton billet (QR code), '
+              . 'finalise le paiement sur la page de l\'événement dans les meilleurs délais — '
+              . 'tant que des places restent disponibles.</p>';
+        $html = corpo_mail_layout(
+            'Une place pour ' . (string)$event['titre'],
+            $body,
+            $evtUrl,
+            'Finaliser mon inscription'
+        );
+        return corpo_mail_send(
+            $to,
+            'Place libérée — finalise ton inscription : ' . (string)$event['titre'],
+            $html,
+            [],
+            $name ?: null
+        );
+    }
+
+    return billet_send_mail_for_ids($pdo, [$inscriptionId]) > 0;
+}
+
+/**
+ * Mail de confirmation d'inscription en liste d'attente (sans QR / PDF).
+ */
+function corpo_mail_send_waitlist_joined(
+    array $inscription,
+    array $event,
+    string $to,
+    ?string $toName = null,
+    ?PDO $pdo = null
+): bool {
+    if (($inscription['statut'] ?? '') !== 'liste_attente') {
+        return false;
+    }
+    if (!function_exists('billet_waitlist_position')) {
+        require_once __DIR__ . '/billetterie.php';
+    }
+    $title = htmlspecialchars((string)$event['titre']);
+    $dateFmt = function_exists('corpo_format_date_long')
+        ? corpo_format_date_long((string)($event['date'] ?? ''), true)
+        : htmlspecialchars((string)($event['date'] ?? ''));
+    $pos = '';
+    if ($pdo instanceof PDO && !empty($inscription['id'])) {
+        $p = billet_waitlist_position($pdo, (int)$inscription['id']);
+        if ($p) {
+            $pos = ' (position #' . (int)$p . ' dans la file)';
+        }
+    }
+    $body = '<p>Tu es inscrit·e en <strong>liste d\'attente</strong> pour <strong>' . $title . '</strong>'
+          . htmlspecialchars($pos) . '.</p>'
+          . '<p>Date : <strong>' . $dateFmt . '</strong></p>'
+          . '<p>Tu recevras un email avec ton billet (QR code) dès qu\'une place se libère.</p>';
+    $html = corpo_mail_layout(
+        'Liste d\'attente — ' . (string)$event['titre'],
+        $body,
+        corpo_mail_app_url('evenement.php?id=' . (int)$event['id']),
+        'Voir l\'événement'
+    );
+    return corpo_mail_send(
+        $to,
+        'Liste d\'attente — ' . (string)$event['titre'],
+        $html,
+        [],
         $toName
     );
 }

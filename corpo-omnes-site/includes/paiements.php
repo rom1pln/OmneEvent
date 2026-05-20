@@ -1,5 +1,6 @@
 <?php
-
+// Routage paiements : SumUp (≤25€) ou Stripe (>25€)
+// Les seuils et taux sont dans le .env
 
 require_once __DIR__ . '/env.php';
 require_once __DIR__ . '/sumup.php';
@@ -10,6 +11,7 @@ const PAIEMENT_SUMUP_FEE_PCT_DEFAULT      = 2.5;
 const PAIEMENT_STRIPE_FEE_PCT_DEFAULT     = 1.5;
 const PAIEMENT_STRIPE_FEE_FIXED_DEFAULT   = 0.25;
 
+// lit une variable d'env en float (accepte la virgule en plus du point)
 function _paiement_env_float(string $key, float $default): float {
     $v = (string)corpo_env($key, '');
     if ($v === '') return $default;
@@ -21,27 +23,12 @@ function paiement_sumup_fee_pct(): float      { return _paiement_env_float('SUMU
 function paiement_stripe_fee_pct(): float     { return _paiement_env_float('STRIPE_FEE_PERCENT',         PAIEMENT_STRIPE_FEE_PCT_DEFAULT); }
 function paiement_stripe_fee_fixed(): float   { return _paiement_env_float('STRIPE_FEE_FIXED',           PAIEMENT_STRIPE_FEE_FIXED_DEFAULT); }
 
-/**
- * Décide quel provider utiliser selon le montant.
- * Convention : montant strictement ≤ seuil → SumUp, sinon Stripe.
- */
+// SumUp si ≤ seuil, Stripe sinon
 function paiement_provider_for(float $amount): string {
     return $amount <= paiement_threshold() ? 'sumup' : 'stripe';
 }
 
-/**
- * Calcule les frais et le net pour un montant donné.
- *
- * Retourne :
- *   provider     : 'sumup' | 'stripe'
- *   label        : 'SumUp' | 'Stripe'
- *   percent      : taux %
- *   fixed        : frais fixes en €
- *   frais        : montant des frais (arrondi 2 décimales)
- *   net          : montant - frais (frais à la charge de l'association)
- *   client_total : montant + frais (frais à la charge du client)
- *   threshold    : seuil SumUp/Stripe utilisé
- */
+// calcule les frais selon le provider et retourne un tableau avec tout ce qu'il faut
 function paiement_calcule_frais(float $amount, ?string $provider = null): array {
     $provider = $provider ?: paiement_provider_for($amount);
     if ($provider === 'sumup') {

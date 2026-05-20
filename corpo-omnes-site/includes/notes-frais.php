@@ -1,5 +1,5 @@
 <?php
-
+// notes de frais : le membre soumet, le bureau valide, le tréso valide, ça passe en compta
 declare(strict_types=1);
 
 require_once __DIR__ . '/date-fr.php';
@@ -39,6 +39,7 @@ function nf_source_type_ready(PDO $pdo): bool
     }
 }
 
+// vérifie si l'user est bien un membre actif (admin ou membre, pas juste adhérent)
 function nf_user_is_bureau_member(PDO $pdo, int $userId, string $structType, int $structId): bool
 {
     if ($userId <= 0 || $structId <= 0) {
@@ -64,6 +65,7 @@ function nf_can_submit_any(PDO $pdo, int $userId): bool
     return nf_memberships_for_submit($pdo, $userId) !== [];
 }
 
+// qui peut accéder à la page notes de frais
 function nf_can_access_admin_notes_page(PDO $pdo, int $userId): bool
 {
     if ($userId <= 0 || !nf_table_ready($pdo)) {
@@ -83,6 +85,7 @@ function nf_is_super_validator(): bool
     return function_exists('isSuperAdmin') && isSuperAdmin();
 }
 
+// droits de validation trésorerie - pas de bypass corpo ici, seul le super admin peut valider hors structure
 function nf_can_manage(PDO $pdo, int $userId, string $structType, int $structId): bool
 {
     if ($userId <= 0 || $structId <= 0 || !function_exists('memberHasStructureResponsabilite')) {
@@ -160,6 +163,7 @@ function nf_can_view(PDO $pdo, int $userId, array $note): bool
     return nf_user_is_bureau_member($pdo, $userId, $structType, $structId);
 }
 
+// validation bureau : on ne peut pas valider sa propre note
 function nf_can_approve_bureau_note(PDO $pdo, int $userId, array $note): bool
 {
     if ($userId <= 0) {
@@ -182,6 +186,7 @@ function nf_can_approve_bureau_note(PDO $pdo, int $userId, array $note): bool
     return nf_user_is_bureau_member($pdo, $userId, $structType, $structId);
 }
 
+// validation tréso - doit être une personne différente de celle qui a validé au bureau
 function nf_can_approve_treso_note(PDO $pdo, int $userId, array $note): bool
 {
     if ($userId <= 0) {
@@ -211,6 +216,7 @@ function nf_can_approve_treso_note(PDO $pdo, int $userId, array $note): bool
     return nf_can_manage($pdo, $userId, $structType, $structId);
 }
 
+/** Super admin : validation complète en une action (bureau + trésorerie + compta). */
 function nf_can_super_validate_note(PDO $pdo, int $userId, array $note): bool
 {
     if (!nf_is_super_validator() || $userId <= 0 || !nf_dual_validation_ready($pdo)) {
@@ -238,6 +244,7 @@ function nf_can_reject_note(PDO $pdo, int $userId, array $note): bool
     return nf_can_manage($pdo, $userId, $structType, $structId);
 }
 
+/** @return list<array{type:string,id:int,nom:string}> */
 function nf_memberships_for_submit(PDO $pdo, int $userId): array
 {
     $out = [];
@@ -280,6 +287,7 @@ function nf_statut_label(string $statut): string
     };
 }
 
+/** @return list<string> */
 function nf_validation_lines(array $note): array
 {
     $lines = [];
@@ -294,6 +302,11 @@ function nf_validation_lines(array $note): array
     return $lines;
 }
 
+/**
+ * Upload unique PDF justificatif.
+ *
+ * @return array{ok:bool,path?:string,msg?:string}
+ */
 function nf_upload_justificatif_pdf(string $structType, int $structId, string $fileField = 'justificatif_pdf'): array
 {
     if (empty($_FILES[$fileField]['tmp_name']) || ($_FILES[$fileField]['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
@@ -327,6 +340,7 @@ function nf_upload_justificatif_pdf(string $structType, int $structId, string $f
     return ['ok' => true, 'path' => 'images/justificatifs/' . preg_replace('/[^a-z]/', '', $structType) . '/' . (int)$structId . '/' . $fname];
 }
 
+/** @return array{ok:bool,msg?:string,id?:int} */
 function nf_create_request(
     PDO $pdo,
     int $userId,
@@ -375,6 +389,7 @@ function nf_create_request(
     return ['ok' => true, 'id' => (int)$pdo->lastInsertId(), 'msg' => 'Demande envoyée — validation bureau puis trésorerie requises.'];
 }
 
+/** @return array<string,mixed>|null */
 function nf_get(PDO $pdo, int $noteId): ?array
 {
     if (!nf_table_ready($pdo)) {
@@ -396,6 +411,7 @@ function nf_get(PDO $pdo, int $noteId): ?array
     return $row ?: null;
 }
 
+/** @return list<array<string,mixed>> */
 function nf_list_for_user(PDO $pdo, int $userId, ?string $structType = null, ?int $structId = null): array
 {
     if (!nf_table_ready($pdo)) {
@@ -416,6 +432,7 @@ function nf_list_for_user(PDO $pdo, int $userId, ?string $structType = null, ?in
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+/** @return list<array<string,mixed>> */
 function nf_list_for_structure(PDO $pdo, string $structType, int $structId, ?string $statutFilter = null): array
 {
     if (!nf_table_ready($pdo)) {
@@ -463,6 +480,7 @@ function nf_count_pending(PDO $pdo, string $structType, int $structId): int
     return (int)$st->fetchColumn();
 }
 
+/** @return list<array<string,mixed>> */
 function nf_list_pending_bureau_for_validator(PDO $pdo, int $validatorId): array
 {
     if (!nf_table_ready($pdo) || !nf_dual_validation_ready($pdo)) {
@@ -502,6 +520,7 @@ function nf_list_pending_bureau_for_validator(PDO $pdo, int $validatorId): array
     return $out;
 }
 
+/** @return list<array<string,mixed>> */
 function nf_list_pending_for_super_admin(PDO $pdo): array
 {
     if (!nf_table_ready($pdo) || !nf_is_super_validator()) {
@@ -521,6 +540,7 @@ function nf_list_pending_for_super_admin(PDO $pdo): array
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+/** @return array{ok:bool,msg?:string,tx_id?:int} */
 function nf_super_validate_and_book(PDO $pdo, int $noteId, int $adminId, ?string $comment = null): array
 {
     if (!nf_is_super_validator()) {
@@ -548,6 +568,7 @@ function nf_super_validate_and_book(PDO $pdo, int $noteId, int $adminId, ?string
     return nf_approve_treso_and_book($pdo, $noteId, $adminId, $comment);
 }
 
+/** @return array{ok:bool,msg?:string} */
 function nf_approve_bureau(PDO $pdo, int $noteId, int $validatorId, ?string $comment = null): array
 {
     $note = nf_get($pdo, $noteId);
@@ -575,6 +596,7 @@ function nf_approve_bureau(PDO $pdo, int $noteId, int $validatorId, ?string $com
     return ['ok' => true, 'msg' => 'Validée par le bureau — en attente de la trésorerie (autre personne).'];
 }
 
+/** @return array{ok:bool,msg?:string,tx_id?:int} */
 function nf_approve_treso_and_book(PDO $pdo, int $noteId, int $treasurerId, ?string $comment = null): array
 {
     require_once __DIR__ . '/comptabilite.php';
@@ -654,6 +676,7 @@ function nf_approve_treso_and_book(PDO $pdo, int $noteId, int $treasurerId, ?str
     }
 }
 
+/** Ancien flux (une seule validation) si migration double validation non appliquée. */
 function nf_approve_and_book_legacy(PDO $pdo, int $noteId, int $treasurerId, ?string $comment = null): array
 {
     require_once __DIR__ . '/comptabilite.php';
@@ -721,11 +744,13 @@ function nf_approve_and_book_legacy(PDO $pdo, int $noteId, int $treasurerId, ?st
     }
 }
 
+/** @deprecated Utiliser nf_approve_treso_and_book */
 function nf_approve_and_book(PDO $pdo, int $noteId, int $treasurerId, ?string $comment = null): array
 {
     return nf_approve_treso_and_book($pdo, $noteId, $treasurerId, $comment);
 }
 
+/** @return array{ok:bool,msg?:string} */
 function nf_reject(PDO $pdo, int $noteId, int $actorId, string $comment): array
 {
     $note = nf_get($pdo, $noteId);

@@ -1,4 +1,7 @@
+// Page sport
 
+// format de date court genre "15 mars 2026"
+// jsp si c'est le bon format mais ca marche
 const moisCourt = ['jan.','fév.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
 
 function formatDate(iso) {
@@ -6,6 +9,7 @@ function formatDate(iso) {
   return `${d.getDate()} ${moisCourt[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+// --- page hub (liste des sports) ---
 
 function initHub() {
   const hubGrid     = document.getElementById('sport-hub-grid');
@@ -44,7 +48,7 @@ function initHub() {
             </div>
             <span>${dispo > 0 ? `${dispo} place${dispo > 1 ? 's' : ''} dispo.` : 'Complet'}</span>
           </div>
-          <a href="sport-detail.php?s=${s.slug}" class="btn btn--primary btn--sm">Voir →</a>
+          <a href="sport-detail.html?s=${s.slug}" class="btn btn--primary btn--sm">Voir →</a>
         </div>
       </div>
     `;
@@ -52,6 +56,8 @@ function initHub() {
     hubGrid.appendChild(card);
   });
 
+  // ── Résultats (dernier match uniquement par sport) ─────
+  // TODO: afficher tout l'historique si on clique sur "voir plus" ou un truc comme ca
   if (!resultsGrid) return;
 
   sports.forEach(s => {
@@ -90,9 +96,8 @@ function initHub() {
   });
 }
 
-
-// page chargée dynamiquement via ?s=basket etc
-// si le slug existe pas dans les data on affiche une erreur
+// --- page détail d'un sport (sport-detail.html) ---
+// chargée dynamiquement via ?s=basket etc.
 
 function initDetail() {
   const main = document.getElementById('sport-main');
@@ -107,7 +112,7 @@ function initDetail() {
       <section class="section">
         <div class="container" style="text-align:center">
           <p style="color:var(--text-muted);margin-bottom:var(--s6)">Sport introuvable.</p>
-          <a href="sport.php" class="btn btn--primary">Retour aux sports</a>
+          <a href="sport.html" class="btn btn--primary">Retour aux sports</a>
         </div>
       </section>`;
     return;
@@ -122,9 +127,9 @@ function initDetail() {
     <section class="page-hero" style="--accent:${sport.couleur}">
       <div class="container">
         <nav class="breadcrumb" aria-label="Fil d'Ariane">
-          <a href="index.php">Accueil</a>
+          <a href="index.html">Accueil</a>
           <span aria-hidden="true">›</span>
-          <a href="sport.php">Sport</a>
+          <a href="sport.html">Sport</a>
           <span aria-hidden="true">›</span>
           <span>${sport.nom}</span>
         </nav>
@@ -234,7 +239,7 @@ function initDetail() {
             </div>
 
             <!-- Retour -->
-            <a href="sport.php" class="btn btn--ghost" style="width:100%;text-align:center">
+            <a href="sport.html" class="btn btn--ghost" style="width:100%;text-align:center">
               ← Tous les sports
             </a>
 
@@ -245,7 +250,6 @@ function initDetail() {
     </section>
   `;
 }
-
 
 // detecte sur quel page on est pour appeler la bonne fonction
 // (y'a surement une meilleure facon de faire mais ca marche)

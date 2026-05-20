@@ -9,41 +9,61 @@ $title = corpo_t('evt.meta_title');
 $userId   = isLoggedIn() ? (int)$_SESSION['user_id'] : 0;
 $flashEvt = '';
 
+// inscription / désinscription via POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $userId) {
     $evtId = (int)($_POST['evt_id'] ?? 0);
     $act   = $_POST['action'] ?? '';
 
     if ($evtId && $act === 'inscrire') {
-        $evInfo = $pdo->prepare("SELECT places, inscrits, mode_inscription FROM evenements WHERE id = ?");
+        $evInfo = $pdo->prepare('SELECT mode_inscription FROM evenements WHERE id = ?');
         $evInfo->execute([$evtId]);
         $ei = $evInfo->fetch();
         if ($ei && evt_normalize_mode($ei['mode_inscription']) === 'connexion') {
-            $statut = ($ei['places'] > 0 && (int)$ei['inscrits'] >= (int)$ei['places'])
-                ? 'liste_attente' : 'confirme';
-            $pdo->prepare(
-                "INSERT INTO inscriptions_evenement (user_id, evenement_id, statut)
-                 VALUES (?,?,?) ON DUPLICATE KEY UPDATE statut = VALUES(statut)"
-            )->execute([$userId, $evtId, $statut]);
-            if ($statut === 'confirme') {
-                $pdo->prepare(
-                    "UPDATE evenements SET inscrits = inscrits + 1
-                     WHERE id = ? AND (places = 0 OR inscrits < places)"
-                )->execute([$evtId]);
+            $exists = $pdo->prepare(
+                "SELECT id FROM inscriptions_evenement
+                  WHERE user_id = ? AND evenement_id = ?
+                    AND statut IN ('confirme','liste_attente','en_attente')"
+            );
+            $exists->execute([$userId, $evtId]);
+            if ($exists->fetchColumn()) {
+                $flashEvt = corpo_t('evt.flash_already');
+            } else {
+                $u = $pdo->prepare('SELECT email, nom, prenom FROM users WHERE id = ?');
+                $u->execute([$userId]);
+                $usr = $u->fetch() ?: [];
+                $newId = billet_create($pdo, $evtId, $userId, [
+                    'email'  => $usr['email']  ?? '',
+                    'nom'    => $usr['nom']    ?? '',
+                    'prenom' => $usr['prenom'] ?? '',
+                ], 0.0, 'aucun', null);
+                if ($newId) {
+                    $stIns = $pdo->prepare('SELECT statut FROM inscriptions_evenement WHERE id = ?');
+                    $stIns->execute([$newId]);
+                    $statut = (string)$stIns->fetchColumn();
+                    if ($statut === 'liste_attente') {
+                        $pos = billet_waitlist_position($pdo, $newId);
+                        $flashEvt = $pos
+                            ? sprintf(corpo_t('evt.flash_wait_pos'), $pos)
+                            : corpo_t('evt.flash_wait');
+                        @billet_send_mail_for_ids($pdo, [$newId]);
+                    } else {
+                        $flashEvt = corpo_t('evt.flash_ok');
+                        @billet_send_mail_for_ids($pdo, [$newId]);
+                    }
+                } else {
+                    $flashEvt = corpo_t('evt.flash_err');
+                }
             }
-            $flashEvt = $statut === 'confirme' ? corpo_t('evt.flash_ok') : corpo_t('evt.flash_wait');
         }
     }
     if ($evtId && $act === 'desinscire') {
-        $pdo->prepare(
-            "DELETE FROM inscriptions_evenement WHERE user_id = ? AND evenement_id = ?"
-        )->execute([$userId, $evtId]);
-        $pdo->prepare(
-            "UPDATE evenements SET inscrits = GREATEST(0, inscrits - 1) WHERE id = ?"
-        )->execute([$evtId]);
-        $flashEvt = corpo_t('evt.flash_out');
+        if (billet_cancel_for_user_event($pdo, $userId, $evtId)) {
+            $flashEvt = corpo_t('evt.flash_out');
+        }
     }
 }
 
+// récupère les events de l'user connecté
 $mesEvts = [];
 if ($userId) {
     $stmtME = $pdo->prepare("SELECT evenement_id, statut FROM inscriptions_evenement WHERE user_id = ?");
@@ -55,13 +75,10 @@ if ($userId) {
 
 require_once 'includes/header.php';
 
+// charge tous les events publiés
 $events = $pdo->query(
     "SELECT * FROM evenements WHERE statut='publie' ORDER BY date ASC, heure ASC"
 )->fetchAll();
-$events = array_values(array_filter(
-    $events,
-    static fn(array $ev): bool => evt_user_can_see_event($pdo, $ev, $userId ?: null)
-));
 
 $now        = new DateTime('today');
 $monthNames = corpo_month_names_full();
@@ -92,6 +109,7 @@ unset($ev);
 $upcoming = array_values(array_filter($events, fn($e) => !$e['_isPast']));
 $past     = array_reverse(array_values(array_filter($events, fn($e) => $e['_isPast'])));
 
+// Distincts pour les chips
 $typesEvt = array_values(array_unique(array_filter(
     array_column($events, 'type'), fn($t) => !empty($t)
 )));
@@ -115,6 +133,7 @@ foreach ($events as $ev) foreach ($ev['_campusJ'] as $c) {
 $campusEvt = array_values(array_unique($campusEvt));
 sort($campusEvt);
 
+// Stats hero
 $totalUpcoming   = count($upcoming);
 $nbCetteSemaine  = 0;
 $nbInscriptions  = 0;
@@ -124,6 +143,7 @@ foreach ($upcoming as $ev) {
     if (($ev['mode_inscription'] ?? 'aucune') !== 'aucune') $nbInscriptions++;
 }
 
+// Calendrier (PHP - mois affiché)
 $dt0 = !empty($upcoming) ? clone $upcoming[0]['_dateObj'] : new DateTime();
 $reqYear  = (int)($_GET['y'] ?? $dt0->format('Y'));
 $reqMonth = (int)($_GET['m'] ?? $dt0->format('n'));
@@ -147,6 +167,7 @@ $lastDow     = (int)(new DateTime("$reqYear-$reqMonth-$daysInMonth"))->format('N
 
 <main>
 
+  <!-- hero -->
   <section class="page-hero">
     <div class="container">
       <nav class="breadcrumb"><a href="index.php"><?= htmlspecialchars(corpo_t('common.breadcrumb_home')) ?></a><span>›</span><span><?= htmlspecialchars(corpo_t('evt.crumb')) ?></span></nav>
@@ -169,10 +190,12 @@ $lastDow     = (int)(new DateTime("$reqYear-$reqMonth-$daysInMonth"))->format('N
     </div>
   </section>
 
+  <!-- filtres -->
   <div class="evt-filterbar">
     <div class="container">
 
-            <div class="evt-filterbar__row evt-filterbar__row--top">
+      <!-- Ligne 1 : recherche + presets dates + vue -->
+      <div class="evt-filterbar__row evt-filterbar__row--top">
         <div class="evt-search-wrap">
           <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" class="evt-search-icon">
             <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="1.6"/>
@@ -208,7 +231,8 @@ $lastDow     = (int)(new DateTime("$reqYear-$reqMonth-$daysInMonth"))->format('N
         </div>
       </div>
 
-            <div class="evt-filterbar__row evt-filterbar__row--filters">
+      <!-- Ligne 2 : chips type / école / campus / statut + tri -->
+      <div class="evt-filterbar__row evt-filterbar__row--filters">
 
         <div class="evt-filter-group">
           <span class="evt-filter-label"><?= htmlspecialchars(corpo_t('evt.label_type')) ?></span>
@@ -267,20 +291,24 @@ $lastDow     = (int)(new DateTime("$reqYear-$reqMonth-$daysInMonth"))->format('N
         </div>
       </div>
 
-            <div id="evt-active-filters" class="evt-active-filters" hidden></div>
+      <!-- Filtres actifs -->
+      <div id="evt-active-filters" class="evt-active-filters" hidden></div>
     </div>
   </div>
 
+  <!-- contenu -->
   <section class="section">
     <div class="container">
 
+      <!-- vue liste -->
       <div id="evt-view-list" class="evt-view evt-view--active">
         <div class="evt-list-header">
           <span class="evt-list-count" id="evt-list-count"><?= $totalUpcoming ?></span>
           <?= $totalUpcoming !== 1 ? htmlspecialchars(corpo_t('evt.list_found_many')) : htmlspecialchars(corpo_t('evt.list_found_one')) ?>
         </div>
 
-                <?php if (!empty($upcoming)): ?>
+        <!-- À VENIR -->
+        <?php if (!empty($upcoming)): ?>
           <div id="evt-upcoming-wrapper">
             <?php
             $groups = [];
@@ -313,8 +341,11 @@ $lastDow     = (int)(new DateTime("$reqYear-$reqMonth-$daysInMonth"))->format('N
                     $ecoleStr = implode(',', $ev['_ecoles']);
                     $campStr  = implode(',', $ev['_campusJ']);
                   ?>
-                    <?php $cardBann = evt_banniere_src($ev['banniere'] ?? null); ?>
-                    <article class="evt-card evt-filterable<?= $cardBann ? ' evt-card--has-thumb' : '' ?>"
+                    <?php
+                      $evtBanUrl = evt_media_url($ev['banniere'] ?? null, $base ?? '');
+                      $evtUrl    = 'evenement.php?id=' . (int)$ev['id'];
+                    ?>
+                    <article class="evt-list-card evt-filterable<?= $evtBanUrl ? ' evt-list-card--cover' : '' ?>"
                              data-evt-type="<?= htmlspecialchars($ev['type'] ?? '') ?>"
                              data-evt-nom="<?= htmlspecialchars(mb_strtolower($ev['titre'])) ?>"
                              data-evt-search="<?= htmlspecialchars(mb_strtolower(($ev['titre'] ?? '').' '.($ev['lieu'] ?? '').' '.($ev['organisateur'] ?? '').' '.($ev['description'] ?? ''))) ?>"
@@ -328,95 +359,101 @@ $lastDow     = (int)(new DateTime("$reqYear-$reqMonth-$daysInMonth"))->format('N
                              data-evt-popularity="<?= $inscrits ?>"
                              id="ev-<?= $ev['id'] ?>">
 
-                      <div class="evt-card__date">
-                        <span class="evt-card__dow"><?= $jour ?></span>
-                        <span class="evt-card__day"><?= $d->format('d') ?></span>
-                        <span class="evt-card__month-sm"><?= htmlspecialchars(corpo_month_abbr((int)$d->format('n'))) ?></span>
-                        <?php if ($isToday): ?>
-                          <span class="evt-card__today"><?= htmlspecialchars(corpo_t('evt.today')) ?></span>
-                        <?php endif; ?>
-                      </div>
-
-                      <?php if ($cardBann): ?>
-                      <div class="evt-card__thumb" aria-hidden="true">
-                        <img src="<?= htmlspecialchars($cardBann) ?>" alt="" loading="lazy" decoding="async">
-                      </div>
+                      <?php if ($evtBanUrl): ?>
+                      <a href="<?= htmlspecialchars($evtUrl) ?>" class="evt-list-card__cover" tabindex="-1" aria-hidden="true">
+                        <img src="<?= htmlspecialchars($evtBanUrl) ?>" alt="" loading="lazy" decoding="async">
+                      </a>
                       <?php endif; ?>
 
-                      <div class="evt-card__body">
-                        <div class="evt-card__head">
-                          <div class="evt-card__badges">
-                            <?php if (!empty($ev['type'])): ?>
-                              <span class="evt-badge evt-badge--type"><?= htmlspecialchars($ev['type']) ?></span>
-                            <?php endif; ?>
-                            <?php foreach ($ev['_campusJ'] as $c): if ($c && $c !== 'Tous'): ?>
-                              <span class="evt-badge evt-badge--campus">📍 <?= htmlspecialchars($c) ?></span>
-                            <?php endif; endforeach; ?>
-                            <?php foreach ($ev['_ecoles'] as $e): if ($e && $e !== 'Tous' && $e !== 'Toutes'): ?>
-                              <span class="evt-badge evt-badge--ecole"><?= htmlspecialchars($e) ?></span>
-                            <?php endif; endforeach; ?>
-                            <?php if ($statut === 'complet'): ?>
-                              <span class="evt-badge evt-badge--full"><?= htmlspecialchars(corpo_t('evt.status_full')) ?></span>
-                            <?php elseif ($dispo !== null && $dispo > 0 && $dispo <= 5): ?>
-                              <span class="evt-badge evt-badge--low"><?= htmlspecialchars(sprintf(corpo_t('evt.low_places'), $dispo)) ?></span>
-                            <?php elseif ($statut === 'inscription-ouverte'): ?>
-                              <span class="evt-badge evt-badge--open"><?= htmlspecialchars(corpo_t('evt.status_open')) ?></span>
-                            <?php endif; ?>
-                          </div>
+                      <div class="evt-list-card__body">
+                        <div class="evt-list-card__head">
+                          <time class="evt-list-card__when" datetime="<?= $d->format('Y-m-d') ?>">
+                            <span class="evt-list-card__when-day"><?= $d->format('d') ?></span>
+                            <span class="evt-list-card__when-meta">
+                              <?= htmlspecialchars(corpo_month_abbr((int)$d->format('n'))) ?>
+                              <span aria-hidden="true">·</span>
+                              <?= htmlspecialchars($jour) ?>
+                            </span>
+                          </time>
+                          <?php if ($isToday): ?>
+                            <span class="evt-list-card__pill evt-list-card__pill--today"><?= htmlspecialchars(corpo_t('evt.today')) ?></span>
+                          <?php endif; ?>
+                          <?php if (!empty($ev['type'])): ?>
+                            <span class="evt-list-card__pill evt-list-card__pill--type"><?= htmlspecialchars($ev['type']) ?></span>
+                          <?php endif; ?>
+                          <?php if ($statut === 'complet'): ?>
+                            <span class="evt-list-card__pill evt-list-card__pill--full"><?= htmlspecialchars(corpo_t('evt.status_full')) ?></span>
+                          <?php elseif ($dispo !== null && $dispo > 0 && $dispo <= 5): ?>
+                            <span class="evt-list-card__pill evt-list-card__pill--low"><?= htmlspecialchars(sprintf(corpo_t('evt.low_places'), $dispo)) ?></span>
+                          <?php elseif ($statut === 'inscription-ouverte'): ?>
+                            <span class="evt-list-card__pill evt-list-card__pill--open"><?= htmlspecialchars(corpo_t('evt.status_open')) ?></span>
+                          <?php endif; ?>
                         </div>
 
-                        <h3 class="evt-card__title">
-                          <?php if ($ev['icon']): ?><?= evt_render_icon($ev['icon']) ?><?php endif; ?>
-                          <a href="evenement.php?id=<?= (int)$ev['id'] ?>" class="evt-card__title-link"><?= htmlspecialchars($ev['titre']) ?></a>
+                        <h3 class="evt-list-card__title">
+                          <a href="<?= htmlspecialchars($evtUrl) ?>">
+                            <span class="evt-list-card__ico" aria-hidden="true"><?= htmlspecialchars(evt_normalize_icon($ev['icon'] ?? null), ENT_QUOTES, 'UTF-8') ?></span>
+                            <span><?= htmlspecialchars($ev['titre']) ?></span>
+                          </a>
                         </h3>
 
-                        <div class="evt-card__organiser">
-                          <?= htmlspecialchars(corpo_t('evt.by')) ?> <strong><?= htmlspecialchars($ev['organisateur'] ?? 'Corpo') ?></strong>
-                          · <?= $jour ?> <?= $d->format('d') ?> <?= htmlspecialchars($monthNames[(int)$d->format('n')]) ?>
-                        </div>
+                        <p class="evt-list-card__orga">
+                          <?= htmlspecialchars(corpo_t('evt.by')) ?>
+                          <strong><?= htmlspecialchars($ev['organisateur'] ?? 'Corpo') ?></strong>
+                        </p>
 
                         <?php if (!empty($ev['description'])): ?>
-                          <p class="evt-card__desc"><?= htmlspecialchars(mb_substr($ev['description'], 0, 180)) ?><?= mb_strlen($ev['description']) > 180 ? '…' : '' ?></p>
+                          <p class="evt-list-card__excerpt"><?= htmlspecialchars(mb_substr($ev['description'], 0, 160)) ?><?= mb_strlen($ev['description']) > 160 ? '…' : '' ?></p>
                         <?php endif; ?>
 
-                        <div class="evt-card__meta">
+                        <ul class="evt-list-card__facts">
                           <?php if ($ev['heure']): ?>
-                            <span class="evt-meta-item">🕐 <?= htmlspecialchars($ev['heure']) ?><?= $ev['heure_fin'] ? ' – ' . htmlspecialchars($ev['heure_fin']) : '' ?></span>
+                            <li><?= htmlspecialchars($ev['heure']) ?><?= $ev['heure_fin'] ? ' – ' . htmlspecialchars($ev['heure_fin']) : '' ?></li>
                           <?php endif; ?>
                           <?php if ($ev['lieu']): ?>
-                            <span class="evt-meta-item">📌 <?= htmlspecialchars($ev['lieu']) ?></span>
+                            <li><?= htmlspecialchars($ev['lieu']) ?></li>
                           <?php endif; ?>
+                          <?php foreach ($ev['_campusJ'] as $c): if ($c && $c !== 'Tous'): ?>
+                            <li><?= htmlspecialchars($c) ?></li>
+                          <?php endif; endforeach; ?>
                           <?php if ($places > 0): ?>
-                            <span class="evt-meta-item evt-meta-item--places<?= $statut === 'complet' ? ' evt-meta-item--full' : ($dispo <= 5 ? ' evt-meta-item--low' : '') ?>">
+                            <li class="<?= $statut === 'complet' ? 'is-full' : ($dispo <= 5 ? 'is-low' : '') ?>">
                               <?php if ($statut === 'complet'): ?>
                                 <?= htmlspecialchars(corpo_t('evt.status_full')) ?>
                               <?php else: ?>
                                 <?= htmlspecialchars(sprintf(corpo_t('evt.places_of'), $dispo, $places)) ?>
                               <?php endif; ?>
-            </span>
+                            </li>
+                          <?php endif; ?>
+                        </ul>
+
+                        <div class="evt-list-card__foot">
+                          <?php if ($mode === 'externe' && !empty($ev['lien_billetterie'])): ?>
+                            <a href="<?= htmlspecialchars($ev['lien_billetterie']) ?>" target="_blank" rel="noopener" class="btn btn--primary btn--sm">
+                              <?= htmlspecialchars(corpo_t('evt.btn_ticketing')) ?>
+                            </a>
+                          <?php elseif (in_array($mode, ['email','connexion','billetterie_email','billetterie_connexion'], true)): ?>
+                            <a href="<?= htmlspecialchars($evtUrl) ?>" class="btn btn--primary btn--sm">
+                              <?php
+                              if ($mode === 'billetterie_email' || $mode === 'billetterie_connexion') {
+                                  if ($statut === 'complet') {
+                                      echo htmlspecialchars(corpo_t('evt.btn_join_waitlist'));
+                                  } else {
+                                      echo (float)($ev['prix'] ?? 0) > 0
+                                          ? 'Acheter · ' . number_format((float)$ev['prix'], 2, ',', ' ') . ' €'
+                                          : htmlspecialchars(corpo_t('evt.btn_register'));
+                                  }
+                              } else {
+                                  echo $statut === 'complet'
+                                      ? htmlspecialchars(corpo_t('evt.btn_join_waitlist'))
+                                      : htmlspecialchars(corpo_t('evt.btn_register'));
+                              }
+                              ?>
+                            </a>
+                          <?php else: ?>
+                            <a href="<?= htmlspecialchars($evtUrl) ?>" class="evt-list-card__more"><?= htmlspecialchars(corpo_t('mes_evt.btn_view')) ?></a>
                           <?php endif; ?>
                         </div>
-
-                        <?php if ($mode === 'externe' && !empty($ev['lien_billetterie'])): ?>
-                          <a href="<?= htmlspecialchars($ev['lien_billetterie']) ?>" target="_blank" rel="noopener"
-                             class="btn btn--primary btn--sm evt-card__cta">
-                            <?= htmlspecialchars(corpo_t('evt.btn_ticketing')) ?>
-                          </a>
-                        <?php elseif (in_array($mode, ['email','connexion','billetterie_email','billetterie_connexion'], true)): ?>
-                          <a href="evenement.php?id=<?= $ev['id'] ?>" class="btn btn--primary btn--sm evt-card__cta">
-                            <?php
-                            if ($mode === 'billetterie_email' || $mode === 'billetterie_connexion') {
-                                echo (float)($ev['prix'] ?? 0) > 0
-                                    ? 'Acheter - ' . number_format((float)$ev['prix'], 2, ',', ' ') . ' €'
-                                    : htmlspecialchars(corpo_t('evt.btn_register'));
-                            } else {
-                                echo $statut === 'complet'
-                                    ? htmlspecialchars(corpo_t('evt.btn_waitlist'))
-                                    : htmlspecialchars(corpo_t('evt.btn_register'));
-                            }
-                            ?>
-                          </a>
-                        <?php endif; ?>
                       </div>
                     </article>
                   <?php endforeach; ?>
@@ -428,12 +465,14 @@ $lastDow     = (int)(new DateTime("$reqYear-$reqMonth-$daysInMonth"))->format('N
           <div class="empty-state"><?= htmlspecialchars(corpo_t('evt.empty_upcoming')) ?></div>
         <?php endif; ?>
 
-                <p id="evt-empty" class="empty-state" hidden>
+        <!-- Message vide après filtrage -->
+        <p id="evt-empty" class="empty-state" hidden>
           <?= htmlspecialchars(corpo_t('evt.empty_filter')) ?>
           <button type="button" class="evt-empty-reset" data-evt-reset><?= htmlspecialchars(corpo_t('evt.empty_reset')) ?></button>
         </p>
 
-                <?php if (!empty($past)): ?>
+        <!-- ÉVÉNEMENTS PASSÉS -->
+        <?php if (!empty($past)): ?>
           <details class="evt-past-toggle">
             <summary>
               <span><?= htmlspecialchars(corpo_t('evt.past_title')) ?></span>
@@ -474,6 +513,7 @@ $lastDow     = (int)(new DateTime("$reqYear-$reqMonth-$daysInMonth"))->format('N
         <?php endif; ?>
       </div>
 
+      <!-- vue calendrier -->
       <div id="evt-view-calendar" class="evt-view">
         <div class="evt-cal-wrapper">
           <div class="evt-cal-header">
@@ -507,10 +547,10 @@ $lastDow     = (int)(new DateTime("$reqYear-$reqMonth-$daysInMonth"))->format('N
                 <?php if ($hasEv): ?>
                   <div class="evt-cal-events">
                     <?php foreach (array_slice($calEvents[$day], 0, 3) as $ev): ?>
-                      <a href="#ev-<?= $ev['id'] ?>" class="evt-cal-pill"
+                      <a href="evenement.php?id=<?= (int)$ev['id'] ?>" class="evt-cal-pill"
                          style="--evt-color:<?= htmlspecialchars($ev['color'] ?? '#5D0282') ?>"
                          title="<?= htmlspecialchars($ev['titre']) ?>">
-                        <?php if ($ev['icon']): ?><?= evt_render_icon($ev['icon']) ?><?php endif; ?>
+                        <span class="evt-cal-pill__ico" aria-hidden="true"><?= htmlspecialchars(evt_normalize_icon($ev['icon'] ?? null), ENT_QUOTES, 'UTF-8') ?></span>
                         <span class="evt-cal-pill__txt"><?= htmlspecialchars($ev['titre']) ?></span>
                       </a>
                     <?php endforeach; ?>
@@ -527,7 +567,8 @@ $lastDow     = (int)(new DateTime("$reqYear-$reqMonth-$daysInMonth"))->format('N
             <?php endfor; ?>
           </div>
 
-                    <?php
+          <!-- Mois rapides -->
+          <?php
           $byMonth = [];
           foreach ($events as $ev) {
               $d = $ev['_dateObj'];
@@ -554,6 +595,7 @@ $lastDow     = (int)(new DateTime("$reqYear-$reqMonth-$daysInMonth"))->format('N
     </div>
   </section>
 
+  <!-- CTA bas de page -->
   <section class="cta-section">
     <div class="container">
       <h2 class="cta-section__title"><?= htmlspecialchars(corpo_t('evt.cta_title')) ?></h2>

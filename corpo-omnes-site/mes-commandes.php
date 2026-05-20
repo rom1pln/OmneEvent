@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * mes-commandes.php - Espace personnel : commandes boutique (connecté).
+ */
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes/db.php';

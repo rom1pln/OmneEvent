@@ -8,10 +8,12 @@
 </head>
 <body class="bg-violet-950 text-white min-h-screen">
 
+  <!-- ── NAVIGATION ───────────────────────────────────────── -->
   <nav class="sticky top-0 z-50 bg-violet-950/90 backdrop-blur border-b border-violet-800/40">
     <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
 
-            <a href="index.php" class="flex items-center gap-3">
+      <!-- Logo -->
+      <a href="index.html" class="flex items-center gap-3">
         <img src="images/logo-corpo-omnes.png" alt="" class="h-8 w-auto" aria-hidden="true">
         <div class="leading-tight">
           <div class="font-bold text-sm">Corpo Omnes</div>
@@ -19,7 +21,8 @@
         </div>
       </a>
 
-            <button id="tw-burger" aria-expanded="false" aria-controls="tw-menu"
+      <!-- Burger (mobile only) -->
+      <button id="tw-burger" aria-expanded="false" aria-controls="tw-menu"
         aria-label="Ouvrir le menu"
         class="md:hidden flex flex-col gap-1.5 p-2 rounded-lg hover:bg-violet-800/40 transition-colors">
         <span class="block w-6 h-0.5 bg-white transition-all"></span>
@@ -27,15 +30,16 @@
         <span class="block w-6 h-0.5 bg-white transition-all"></span>
       </button>
 
-            <ul class="hidden md:flex items-center gap-6 text-sm font-medium" role="list">
-        <li><a href="index.php"        class="text-slate-300 hover:text-white transition-colors">Accueil</a></li>
-        <li><a href="apropos.php"      class="text-slate-300 hover:text-white transition-colors">La Corpo</a></li>
-        <li><a href="associations.php" class="text-slate-300 hover:text-white transition-colors">Associations</a></li>
-        <li><a href="evenements.php"   class="text-slate-300 hover:text-white transition-colors">Événements</a></li>
-        <li><a href="sport.php"        class="text-slate-300 hover:text-white transition-colors">Sport</a></li>
-        <li><a href="partenaires.php"  class="text-slate-300 hover:text-white transition-colors">Partenaires</a></li>
+      <!-- Menu desktop -->
+      <ul class="hidden md:flex items-center gap-6 text-sm font-medium" role="list">
+        <li><a href="index.html"        class="text-slate-300 hover:text-white transition-colors">Accueil</a></li>
+        <li><a href="apropos.html"      class="text-slate-300 hover:text-white transition-colors">La Corpo</a></li>
+        <li><a href="associations.html" class="text-slate-300 hover:text-white transition-colors">Associations</a></li>
+        <li><a href="evenements.html"   class="text-slate-300 hover:text-white transition-colors">Événements</a></li>
+        <li><a href="sport.html"        class="text-slate-300 hover:text-white transition-colors">Sport</a></li>
+        <li><a href="partenaires.html"  class="text-slate-300 hover:text-white transition-colors">Partenaires</a></li>
         <li>
-          <a href="demande-partenariat.php"
+          <a href="demande-partenariat.html"
             class="bg-violet-600 hover:bg-violet-500 text-white font-semibold px-4 py-2 rounded-lg transition-colors text-xs uppercase tracking-wider">
             Devenir partenaire
           </a>
@@ -43,16 +47,17 @@
       </ul>
     </div>
 
-        <div id="tw-menu" class="hidden md:hidden border-t border-violet-800/40 bg-violet-950">
+    <!-- Menu mobile (caché par défaut) -->
+    <div id="tw-menu" class="hidden md:hidden border-t border-violet-800/40 bg-violet-950">
       <ul class="px-4 py-5 flex flex-col gap-4 text-sm font-medium" role="list">
-        <li><a href="index.php"        class="block text-slate-300 hover:text-white transition-colors py-1">Accueil</a></li>
-        <li><a href="apropos.php"      class="block text-slate-300 hover:text-white transition-colors py-1">La Corpo</a></li>
-        <li><a href="associations.php" class="block text-slate-300 hover:text-white transition-colors py-1">Associations</a></li>
-        <li><a href="evenements.php"   class="block text-slate-300 hover:text-white transition-colors py-1">Événements</a></li>
-        <li><a href="sport.php"        class="block text-slate-300 hover:text-white transition-colors py-1">Sport</a></li>
-        <li><a href="partenaires.php"  class="block text-slate-300 hover:text-white transition-colors py-1">Partenaires</a></li>
+        <li><a href="index.html"        class="block text-slate-300 hover:text-white transition-colors py-1">Accueil</a></li>
+        <li><a href="apropos.html"      class="block text-slate-300 hover:text-white transition-colors py-1">La Corpo</a></li>
+        <li><a href="associations.html" class="block text-slate-300 hover:text-white transition-colors py-1">Associations</a></li>
+        <li><a href="evenements.html"   class="block text-slate-300 hover:text-white transition-colors py-1">Événements</a></li>
+        <li><a href="sport.html"        class="block text-slate-300 hover:text-white transition-colors py-1">Sport</a></li>
+        <li><a href="partenaires.html"  class="block text-slate-300 hover:text-white transition-colors py-1">Partenaires</a></li>
         <li>
-          <a href="demande-partenariat.php"
+          <a href="demande-partenariat.html"
             class="block text-center bg-violet-600 text-white font-semibold py-3 rounded-lg text-xs uppercase tracking-wider mt-2">
             Devenir partenaire
           </a>
@@ -63,12 +68,13 @@
 
   <main>
 
+    <!-- ── HERO ─────────────────────────────────────────────── -->
     <section class="py-16 px-4 text-center">
       <div class="max-w-2xl mx-auto">
         <nav aria-label="Fil d'Ariane" class="flex items-center justify-center gap-2 text-xs text-slate-400 mb-8">
-          <a href="index.php" class="hover:text-white transition-colors">Accueil</a>
+          <a href="index.html" class="hover:text-white transition-colors">Accueil</a>
           <span aria-hidden="true">›</span>
-          <a href="partenaires.php" class="hover:text-white transition-colors">Partenaires</a>
+          <a href="partenaires.html" class="hover:text-white transition-colors">Partenaires</a>
           <span aria-hidden="true">›</span>
           <span class="text-slate-300">Devenir partenaire</span>
         </nav>
@@ -85,7 +91,9 @@
       </div>
     </section>
 
-        <section class="px-4 pb-12">
+    <!-- ── CHIFFRES CLÉS ──────────────────────────────────── -->
+    <!-- Mobile : 1 col → sm : 3 col -->
+    <section class="px-4 pb-12">
       <div class="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4">
 
         <div class="bg-violet-900/30 border border-violet-800/40 rounded-2xl p-8 text-center">
@@ -106,16 +114,20 @@
       </div>
     </section>
 
-        <section class="px-4 py-12 bg-violet-900/10">
+    <!-- ── FORMULAIRE + AVANTAGES ────────────────────────── -->
+    <!-- Mobile : 1 col → lg : 2 col -->
+    <section class="px-4 py-12 bg-violet-900/10">
       <div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
 
-                <div class="bg-violet-900/25 border border-violet-800/40 rounded-2xl p-6 md:p-8">
+        <!-- Formulaire -->
+        <div class="bg-violet-900/25 border border-violet-800/40 rounded-2xl p-6 md:p-8">
           <h2 class="text-2xl font-bold mb-2">Déposer une demande</h2>
           <p class="text-sm text-slate-400 mb-8">Réponse garantie sous 5 jours ouvrés.</p>
 
           <form class="flex flex-col gap-5" novalidate>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Entreprise + Contact : 1 col mobile → 2 col sm -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label for="entreprise" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
                   Entreprise <span class="text-violet-400">*</span>
@@ -132,7 +144,8 @@
               </div>
             </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Email + Téléphone : 1 col mobile → 2 col sm -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label for="email" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
                   Email <span class="text-violet-400">*</span>
@@ -149,7 +162,8 @@
               </div>
             </div>
 
-                        <div>
+            <!-- Type de partenariat -->
+            <div>
               <label for="type" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
                 Type de partenariat <span class="text-violet-400">*</span>
               </label>
@@ -165,7 +179,8 @@
               </select>
             </div>
 
-                        <div>
+            <!-- Campus ciblé : boutons radio -->
+            <div>
               <p class="text-xs font-semibold uppercase tracking-wider text-slate-300 mb-3">
                 Campus ciblé
               </p>
@@ -185,7 +200,8 @@
               </div>
             </div>
 
-                        <div>
+            <!-- Offre proposée -->
+            <div>
               <label for="offre" class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">
                 Offre ou partenariat envisagé <span class="text-violet-400">*</span>
               </label>
@@ -194,14 +210,16 @@
                 class="w-full bg-violet-950/60 border border-violet-700/50 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-violet-400 transition-colors resize-none"></textarea>
             </div>
 
-                        <label class="flex items-start gap-3 cursor-pointer">
+            <!-- Consentement -->
+            <label class="flex items-start gap-3 cursor-pointer">
               <input type="checkbox" required class="accent-violet-400 w-4 h-4 mt-0.5 flex-shrink-0">
               <span class="text-xs text-slate-400">
                 J'accepte que mes informations soient utilisées par la Corpo Omnes Lyon pour traiter ma demande de partenariat.
               </span>
             </label>
 
-                        <button type="submit"
+            <!-- Submit -->
+            <button type="submit"
               class="w-full bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white font-bold py-4 rounded-xl transition-colors text-sm uppercase tracking-widest">
               Envoyer ma demande →
             </button>
@@ -209,7 +227,8 @@
           </form>
         </div>
 
-                <div class="flex flex-col gap-6">
+        <!-- Colonne droite : pourquoi + contact -->
+        <div class="flex flex-col gap-6">
 
           <h2 class="text-2xl font-bold">Pourquoi nous rejoindre ?</h2>
           <p class="text-slate-300 text-sm leading-relaxed">
@@ -218,7 +237,8 @@
             et marketing - les futurs actifs de la région lyonnaise.
           </p>
 
-                    <div class="flex flex-col gap-3">
+          <!-- Avantages : 1 col mobile → toujours 1 col (liste verticale dans col droite) -->
+          <div class="flex flex-col gap-3">
 
             <div class="flex items-start gap-4 bg-violet-900/20 border border-violet-800/30 rounded-xl p-5">
               <span class="text-2xl flex-shrink-0" aria-hidden="true">🎯</span>
@@ -254,7 +274,8 @@
 
           </div>
 
-                    <div class="bg-violet-600/15 border border-violet-500/30 rounded-xl p-5">
+          <!-- Contact direct -->
+          <div class="bg-violet-600/15 border border-violet-500/30 rounded-xl p-5">
             <p class="text-xs font-bold uppercase tracking-wider text-violet-400 mb-3">Contact direct</p>
             <div class="flex flex-col gap-2 text-sm">
               <a href="mailto:corpo.omnes.lyon@gmail.com"
@@ -272,7 +293,9 @@
       </div>
     </section>
 
-        <section class="px-4 py-16">
+    <!-- ── PROCESSUS ──────────────────────────────────────── -->
+    <!-- Mobile : 1 col → sm : 2 col → lg : 4 col -->
+    <section class="px-4 py-16">
       <div class="max-w-6xl mx-auto">
         <h2 class="text-2xl font-bold text-center mb-3">Comment ça marche ?</h2>
         <p class="text-center text-slate-400 text-sm mb-10">De la demande à la publication, 4 étapes simples.</p>
@@ -315,7 +338,9 @@
       </div>
     </section>
 
-        <section class="px-4 py-12 bg-violet-900/10">
+    <!-- ── TYPES DE PARTENARIATS ──────────────────────────── -->
+    <!-- Mobile : 1 col → md : 2 col → lg : 3 col -->
+    <section class="px-4 py-12 bg-violet-900/10">
       <div class="max-w-6xl mx-auto">
         <h2 class="text-2xl font-bold text-center mb-3">Types de partenariats</h2>
         <p class="text-center text-slate-400 text-sm mb-10">Plusieurs formules pour s'adapter à votre projet.</p>
@@ -376,6 +401,7 @@
 
   </main>
 
+  <!-- ── FOOTER ────────────────────────────────────────────── -->
   <footer class="border-t border-violet-800/40 py-8 px-4">
     <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-slate-400">
       <span>© 2026 Corpo Omnes Lyon</span>
@@ -389,7 +415,8 @@
     </div>
   </footer>
 
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <!-- jQuery - burger menu -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script>
     $(function () {
       var $burger = $('#tw-burger');

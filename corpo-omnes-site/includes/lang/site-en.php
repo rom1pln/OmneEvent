@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-
+/** Traductions EN - public site */
 return [
     'nav.home' => 'Home',
     'nav.corpo' => 'The Corpo',

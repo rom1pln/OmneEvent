@@ -18,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if (!empty($_GET['flash'])) { $flash = $_GET['flash']; $flashType = $_GET['type'] ?? 'ok'; }
 
+// Détail d'une demande
 $detail = null;
 if (!empty($_GET['id'])) {
     $stmt = $pdo->prepare("SELECT * FROM demandes_partenariat WHERE id = ?");
@@ -32,10 +33,11 @@ $demandes = $pdo->query("SELECT * FROM demandes_partenariat ORDER BY created_at 
 <?php if ($flash): ?><div class="flash flash--<?= htmlspecialchars($flashType) ?>"><?= htmlspecialchars($flash) ?></div><?php endif; ?>
 
 <?php if ($detail): ?>
+<!-- Détail d'une demande -->
 <div class="admin-card">
   <div style="display:flex;align-items:center;gap:var(--s4);margin-bottom:var(--s4)">
     <a href="demandes.php" class="btn btn--ghost btn--sm">← Retour à la liste</a>
-    <h2 style="margin:0">Demande
+    <h2 style="margin:0">Demande #<?= $detail['id'] ?></h2>
   </div>
   <dl style="display:grid;grid-template-columns:180px 1fr;gap:var(--s3) var(--s6);font-size:.85rem">
     <dt style="color:var(--text-muted);font-weight:700">Organisation</dt>    <dd><?= htmlspecialchars($detail['organisation']) ?></dd>
@@ -58,6 +60,7 @@ $demandes = $pdo->query("SELECT * FROM demandes_partenariat ORDER BY created_at 
 </div>
 <?php else: ?>
 
+<!-- Liste -->
 <div class="admin-card">
   <h2>Toutes les demandes (<?= count($demandes) ?>)</h2>
   <?php if (empty($demandes)): ?>

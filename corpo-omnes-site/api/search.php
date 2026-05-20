@@ -1,5 +1,8 @@
 <?php
-
+/**
+ * Recherche globale - JSON pour l’overlay du header.
+ * GET ?q=...&limit=12
+ */
 declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');

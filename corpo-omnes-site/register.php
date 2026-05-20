@@ -1,5 +1,8 @@
 <?php
-
+/* register.php - Inscription publique
+ * Deux profils : étudiant (email école) | personnel du groupe (email pro)
+ * L'email sert d'identifiant - pas de champ "username" visible
+ */
 require_once 'includes/db.php';
 require_once 'includes/auth.php';
 require_once 'includes/i18n.php';
@@ -17,6 +20,7 @@ $errors  = [];
 $success = false;
 $post    = $_POST;
 
+// Données de référence
 $ecoles      = ['ECE','ESCE','HEIP','INSEEC Bachelor','INSEEC BBA','INSEEC BTS','INSEEC GE','INSEEC MSc','Sup de Pub','Autre'];
 $ecolesPerso = ['ECE','ESCE','HEIP','INSEEC Bachelor','INSEEC BBA','INSEEC BTS','INSEEC GE','INSEEC MSc','Sup de Pub','Omnes (Administration)','Autre'];
 $campuses    = ['Citroën','Citadelle','Les deux'];
@@ -31,12 +35,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $mdp        = $post['password']         ?? '';
     $mdpConfirm = $post['password_confirm'] ?? '';
 
+    // Validations communes
     if (mb_strlen($nom)    < 2) $errors[] = 'Le nom est requis (2 caractères min).';
     if (mb_strlen($prenom) < 2) $errors[] = 'Le prénom est requis.';
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $errors[] = 'Email invalide.';
     } elseif (!corpo_email_is_valid_for_type($email, $userType)) {
-
+        // L'email doit correspondre à un domaine Omnes autorisé selon le profil.
         $allowed = implode(', ', corpo_email_allowed_domains($userType));
         $errors[] = $userType === 'personnel'
             ? "Cet email n'est pas reconnu comme un email du personnel Omnes. Domaines acceptés : $allowed."
@@ -45,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (mb_strlen($mdp) < 8)   $errors[] = 'Mot de passe trop court (8 caractères min).';
     if ($mdp !== $mdpConfirm)  $errors[] = 'Les mots de passe ne correspondent pas.';
 
+    // Génération username à partir de l'email
     $username = strtolower(preg_replace('/[^a-zA-Z0-9._-]/', '', explode('@', $email)[0]));
     if (mb_strlen($username) < 2) $username = strtolower($prenom . '.' . $nom);
 
@@ -94,11 +100,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-    } else {
+    } else { // personnel
         $campus   = trim($post['campus']   ?? '');
         $fonction = trim($post['fonction'] ?? '');
         $ecoleP   = trim($post['ecole_perso'] ?? '');
 
+        // Normaliser l'école : "Omnes (Administration)" → 'Groupe Omnes'
         $ecoleStored = $ecoleP === 'Omnes (Administration)' ? 'Groupe Omnes' : ($ecoleP ?: 'Groupe Omnes');
 
         if (empty($errors)) {
@@ -113,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $username, $email, $hash,
                     $nom, $prenom,
                     $ecoleStored,
-                    $fonction ?: null,
+                    $fonction ?: null, // réutilise le champ promotion pour la fonction
                 ]);
                 $userId = (int)$pdo->lastInsertId();
                 corpo_mail_send_verification($pdo, [
@@ -129,6 +136,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+// (pas de select structure - section retirée)
 
 require_once 'includes/header.php';
 ?>
@@ -154,6 +163,7 @@ require_once 'includes/header.php';
 
 <?php else: ?>
 
+  <!-- sélecteur de profil -->
   <div class="register-tabs">
     <button class="register-tab<?= $userType !== 'personnel' ? ' register-tab--active' : '' ?>"
             onclick="switchTab('etudiant')" type="button">
@@ -165,6 +175,7 @@ require_once 'includes/header.php';
     </button>
   </div>
 
+  <!-- formulaire étudiant -->
   <div class="register-card" id="form-etudiant"
        style="<?= $userType === 'personnel' ? 'display:none' : '' ?>">
     <h1>Créer un compte</h1>
@@ -179,7 +190,8 @@ require_once 'includes/header.php';
     <form method="post" novalidate>
       <input type="hidden" name="user_type" value="etudiant">
 
-            <p class="section-label" style="margin-bottom:var(--s4)">Identité</p>
+      <!-- Identité -->
+      <p class="section-label" style="margin-bottom:var(--s4)">Identité</p>
 
       <div class="field field-row">
         <div>
@@ -215,7 +227,8 @@ require_once 'includes/header.php';
 
       <hr class="divider">
 
-            <p class="section-label" style="margin-bottom:var(--s4)">Contact</p>
+      <!-- Contact -->
+      <p class="section-label" style="margin-bottom:var(--s4)">Contact</p>
 
       <div class="field">
         <label>Email école <span class="req">*</span></label>
@@ -237,7 +250,8 @@ require_once 'includes/header.php';
 
       <hr class="divider">
 
-            <p class="section-label" style="margin-bottom:var(--s4)">Mot de passe</p>
+      <!-- Mot de passe -->
+      <p class="section-label" style="margin-bottom:var(--s4)">Mot de passe</p>
 
       <div class="field field-row">
         <div>
@@ -260,6 +274,7 @@ require_once 'includes/header.php';
     </form>
   </div>
 
+  <!-- formulaire personnel -->
   <div class="register-card" id="form-personnel"
        style="<?= $userType !== 'personnel' ? 'display:none' : '' ?>">
     <h1>Créer un compte</h1>
@@ -274,7 +289,8 @@ require_once 'includes/header.php';
     <form method="post" novalidate>
       <input type="hidden" name="user_type" value="personnel">
 
-            <p class="section-label" style="margin-bottom:var(--s4)">Identité</p>
+      <!-- Identité -->
+      <p class="section-label" style="margin-bottom:var(--s4)">Identité</p>
 
       <div class="field field-row">
         <div>
@@ -323,7 +339,8 @@ require_once 'includes/header.php';
 
       <hr class="divider">
 
-            <p class="section-label" style="margin-bottom:var(--s4)">Contact professionnel</p>
+      <!-- Contact -->
+      <p class="section-label" style="margin-bottom:var(--s4)">Contact professionnel</p>
 
       <div class="field">
         <label>Email professionnel <span class="req">*</span></label>
@@ -338,7 +355,8 @@ require_once 'includes/header.php';
 
       <hr class="divider">
 
-            <p class="section-label" style="margin-bottom:var(--s4)">Mot de passe</p>
+      <!-- Mot de passe -->
+      <p class="section-label" style="margin-bottom:var(--s4)">Mot de passe</p>
 
       <div class="field field-row">
         <div>
@@ -365,7 +383,7 @@ require_once 'includes/header.php';
 </main>
 
 <style>
-
+/* onglets étudiant / personnel */
 .register-tabs {
   display: flex;
   justify-content: center;
@@ -392,14 +410,16 @@ require_once 'includes/header.php';
   color: #fff;
 }
 
+/* autres styles du form */
 .req { color: #ef4444; margin-left: 2px; }
 
+/* dropdowns en thème sombre */
 .register-card select option,
 .register-card select optgroup { background: #0D001F; color: #fff; }
 </style>
 
 <script>
-
+// switch entre les deux formulaires
 function switchTab(type) {
   document.getElementById('form-etudiant').style.display  = type === 'etudiant'  ? '' : 'none';
   document.getElementById('form-personnel').style.display = type === 'personnel' ? '' : 'none';

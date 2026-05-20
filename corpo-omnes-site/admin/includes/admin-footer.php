@@ -1,6 +1,7 @@
-  </main>
-  <script>
+  </main><!-- /.admin-main -->
 
+  <script>
+    // toggle sidebar mobile
     (function () {
       const burger  = document.getElementById('adminBurger');
       const overlay = document.getElementById('adminOverlay');
@@ -13,13 +14,13 @@
       }
       burger.addEventListener('click',  () => setOpen(!document.body.classList.contains('admin-sidebar-open')));
       overlay.addEventListener('click', () => setOpen(false));
-
+      // Ferme le menu sur tap d'un lien (navigation)
       sidebar.querySelectorAll('a').forEach(a => a.addEventListener('click', () => setOpen(false)));
-
+      // Ferme en cas de resize vers desktop (évite layout figé)
       window.addEventListener('resize', () => {
         if (window.innerWidth > 980 && document.body.classList.contains('admin-sidebar-open')) setOpen(false);
       });
-
+      // Escape pour fermer
       document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
     })();
   </script>

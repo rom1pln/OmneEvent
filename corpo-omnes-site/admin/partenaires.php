@@ -16,6 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $structType = $_POST['structure_type'] ?? 'asso';
         $structId   = (int)($_POST['structure_id'] ?? 0) ?: null;
 
+        // Validation : vérifier que l'user peut gérer cette structure
         $authorized = isAdminCorpo();
         if (!$authorized && $structId) {
             if ($structType === 'sport') {
@@ -25,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         if (!$authorized && !$structId && $structType === 'corpo') {
-            $authorized = false;
+            $authorized = false; // seul admin_corpo peut ajouter un partenaire Corpo global
         }
 
         if ($nom === '') {
@@ -160,6 +161,7 @@ if (isAdminCorpo()) {
     }
 }
 
+/** Vrai si l'utilisateur peut modifier / supprimer ce partenaire (hors admin Corpo déjà géré). */
 function partenaire_user_can_manage(PDO $pdo, array $p): bool {
     if (isAdminCorpo()) {
         return true;
@@ -178,6 +180,7 @@ function partenaire_user_can_manage(PDO $pdo, array $p): bool {
     return false;
 }
 
+// ── Structures gérables par l'user (pour le formulaire) ──────
 if (isAdminCorpo()) {
     $assos  = $pdo->query("SELECT id, nom, type FROM associations ORDER BY type, nom")->fetchAll();
     $sports = $pdo->query("SELECT id, nom FROM sports ORDER BY nom")->fetchAll();
@@ -230,6 +233,7 @@ $campus = ['Tous','Citroën','Citadelle'];
   <div class="flash flash--warn">Bureau : vos partenaires passent par validation Corpo.</div>
 <?php endif; ?>
 
+<!-- Ajout -->
 <div class="admin-card">
   <h2>Ajouter un partenaire</h2>
   <form method="post" enctype="multipart/form-data" class="admin-form">
@@ -296,11 +300,11 @@ $campus = ['Tous','Citroën','Citadelle'];
             opt.style.display = (t === type || opt.value === '0') ? '' : 'none';
           }
         });
-
+        // Sélectionne la première option visible
         const first = [...sel.options].find(o => o.style.display !== 'none');
         if (first) sel.value = first.value;
       }
-
+      // Init
       document.addEventListener('DOMContentLoaded', () => syncPtStructList(document.getElementById('ptTypeSelect').value));
     </script>
     <div class="form-row">
@@ -310,9 +314,10 @@ $campus = ['Tous','Citroën','Citadelle'];
   </form>
 </div>
 
+<!-- Liste -->
 <div class="admin-card" style="padding:0;overflow:hidden">
   <table class="admin-table">
-    <thead><tr><th>
+    <thead><tr><th>#</th><th>Nom</th><th>Type</th><th>Offre / Code</th><th>Structure</th><th>Statut</th><th>Actions</th></tr></thead>
     <tbody>
       <?php if (empty($partners)): ?>
         <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:var(--s6)">Aucun partenaire.</td></tr>

@@ -1,12 +1,17 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * Export tableur (XLSX natif ou CSV Excel) sans dépendance Composer.
+ */
+
 function corpo_spreadsheet_xml(string $value): string
 {
     $value = str_replace(["\0", "\r"], '', $value);
     return htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
 }
 
+/** Colonne Excel 0-based → A, B, … Z, AA, … */
 function corpo_spreadsheet_col(int $colIndex): string
 {
     $colIndex++;
@@ -41,6 +46,10 @@ function corpo_spreadsheet_cell_xml(int $rowNum, int $colIndex, mixed $value): s
     return '<c r="' . $ref . '" t="inlineStr"><is><t>' . corpo_spreadsheet_xml($str) . '</t></is></c>';
 }
 
+/**
+ * @param list<string> $headers
+ * @param list<list<scalar|null>> $rows
+ */
 function corpo_spreadsheet_send_csv(string $basename, array $headers, array $rows): void
 {
     $safe = preg_replace('/[^a-zA-Z0-9._-]+/', '-', $basename) ?: 'export';
@@ -60,6 +69,10 @@ function corpo_spreadsheet_send_csv(string $basename, array $headers, array $row
     exit;
 }
 
+/**
+ * @param list<string> $headers
+ * @param list<list<scalar|null>> $rows
+ */
 function corpo_spreadsheet_send_xlsx(string $basename, array $headers, array $rows): void
 {
     if (!class_exists('ZipArchive')) {
@@ -155,6 +168,10 @@ function corpo_spreadsheet_send_xlsx(string $basename, array $headers, array $ro
     exit;
 }
 
+/**
+ * @param list<string> $headers
+ * @param list<list<scalar|null>> $rows
+ */
 function corpo_spreadsheet_send(string $basename, array $headers, array $rows, string $format = 'xlsx'): void
 {
     $format = strtolower($format);

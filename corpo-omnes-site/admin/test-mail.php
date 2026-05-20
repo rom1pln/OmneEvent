@@ -1,5 +1,8 @@
 <?php
-
+/* admin/test-mail.php - Diagnostic d'envoi mail.
+ * Réservé strictement au Super Administrateur. Envoie un mail vide vers une
+ * adresse cible et affiche le statut + dernières lignes de logs/mail.log.
+ */
 $adminTitle = 'Test envoi mail';
 $adminPage  = 'test-mail';
 require_once '../includes/db.php';
@@ -36,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+/* ── IP publique du serveur (utile pour Brevo "Authorized IPs") ── */
 $serverAddr = '';
 foreach (['HTTP_X_FORWARDED_FOR', 'SERVER_ADDR'] as $key) {
     if (!empty($_SERVER[$key])) {
@@ -43,7 +47,9 @@ foreach (['HTTP_X_FORWARDED_FOR', 'SERVER_ADDR'] as $key) {
         break;
     }
 }
-
+// Tentative externe pour récupérer l'IP "sortante" : sur les hébergeurs
+// mutualisés (42web.io, InfinityFree…) elle est souvent DIFFÉRENTE de
+// SERVER_ADDR. C'est elle que Brevo voit en face quand on envoie un mail.
 $outboundIp = '';
 $ctx = stream_context_create(['http' => ['timeout' => 3]]);
 $body = @file_get_contents('https://api.ipify.org', false, $ctx);
@@ -51,6 +57,7 @@ if ($body && preg_match('/^\d+\.\d+\.\d+\.\d+$/', trim((string)$body))) {
     $outboundIp = trim((string)$body);
 }
 
+/* ── Récap configuration actuelle ───────────────────────── */
 $cfg = [
     'MAIL_ENABLED'     => (string)corpo_env('MAIL_ENABLED', '0'),
     'MAIL_FROM'        => (string)corpo_env('MAIL_FROM', '(non défini)'),

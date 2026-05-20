@@ -1,5 +1,5 @@
 <?php
-
+/* includes/footer.php - Pied de page commun + scripts JS */
 $base = $base ?? '';
 if (!function_exists('corpo_current_lang')) {
     require_once __DIR__ . '/i18n.php';
@@ -78,7 +78,7 @@ $curLang = corpo_current_lang();
   </footer>
 
   <?php
-
+    // Bannière / modale de consentement cookies (RGPD)
     if (!isset($disableCookieConsent) || !$disableCookieConsent) {
         require_once __DIR__ . '/cookie-consent.php';
     }

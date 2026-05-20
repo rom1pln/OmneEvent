@@ -1,3 +1,10 @@
+-- ============================================================
+-- Corpo Omnes Lyon - Base de données v5 (schéma aligné sur admin/migrate.php)
+-- Hiérarchie : super_admin > admin_corpo > membre_corpo > user
+-- Structure : Corpo ← BDE/BDS ← Assos/Sports ← Membres
+-- Importer via phpMyAdmin ou : mysql -u root -p < database.sql
+-- Pour une base déjà en prod : exécuter les migrations via /admin/migrate.php
+-- ============================================================
 
 CREATE DATABASE IF NOT EXISTS corpo_omnes
   DEFAULT CHARACTER SET utf8mb4
@@ -5,6 +12,13 @@ CREATE DATABASE IF NOT EXISTS corpo_omnes
 
 USE corpo_omnes;
 
+-- ─── USERS ────────────────────────────────────────────────
+-- Rôles globaux (indépendants des structures) :
+--   super_admin  = propriétaire de la Corpo, nomme les admins corpo
+--   admin_corpo  = contrôle total de la plateforme
+--   membre_corpo = peut gérer news/events Corpo
+--   user         = étudiant de base
+-- L'appartenance à un BDE/BDS/asso/sport est dans structure_membres.
 CREATE TABLE IF NOT EXISTS users (
   id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   username      VARCHAR(80)  NOT NULL UNIQUE,
@@ -12,21 +26,30 @@ CREATE TABLE IF NOT EXISTS users (
   email         VARCHAR(255) NOT NULL UNIQUE,
   email_perso   VARCHAR(255) DEFAULT NULL COMMENT 'Email personnel (hors école)',
   password_hash VARCHAR(255) NOT NULL,
+  -- Infos étudiant
   nom           VARCHAR(100) DEFAULT NULL,
   prenom        VARCHAR(100) DEFAULT NULL,
   ecole         ENUM('ECE','ESCE','HEIP','INSEEC Bachelor','INSEEC BBA','INSEEC BTS','INSEEC GE','INSEEC MSc','Sup de Pub','Autre') DEFAULT NULL,
   programme     VARCHAR(100) DEFAULT NULL COMMENT 'ex: Bachelor, Ingénieur, MBA, MSc…',
   promotion     VARCHAR(20)  DEFAULT NULL COMMENT 'ex: 2026, B3 2027…',
+  -- Rôle global
   role          ENUM('super_admin','admin_corpo','membre_corpo','user') DEFAULT 'user',
   statut        ENUM('actif','en_attente','suspendu') DEFAULT 'en_attente',
   email_verified_at DATETIME DEFAULT NULL COMMENT 'Date de validation de l''email (NULL = pas encore validée)',
   created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+-- OBLIGATOIRE après import : http://localhost/corpo-omnes-site/admin/setup-password.php
 INSERT INTO users (username, email, password_hash, role, statut) VALUES
 ('superadmin', 'superadmin@corpo-omnes.fr', 'SETUP_REQUIRED', 'super_admin', 'actif'),
 ('admincorpo', 'admin@corpo-omnes.fr',      'SETUP_REQUIRED', 'admin_corpo', 'actif');
 
+-- ─── ASSOCIATIONS ─────────────────────────────────────────
+-- Hiérarchie :
+--   Corpo ← (parent_bde_id = NULL, type = Corpo/BDE/BDS/Fédération/Association…)
+--   BDE   ← associations de son école (parent_bde_id = id du BDE)
+--   BDS   ← sports de son école (voir table sports.parent_bds_id)
+-- Une asso avec parent_bde_id = NULL appartient directement à la Corpo
 CREATE TABLE IF NOT EXISTS associations (
   id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   slug           VARCHAR(120) NOT NULL UNIQUE,
@@ -41,7 +64,10 @@ CREATE TABLE IF NOT EXISTS associations (
   ouverte_a_tous TINYINT(1)   DEFAULT 0,
   color          VARCHAR(10)  DEFAULT '#5D0282',
   logo           VARCHAR(255) DEFAULT NULL COMMENT 'Chemin vers le logo (images/assos/xxx.png)',
+  -- Lien hiérarchique : BDE dont dépend cette asso (NULL = Corpo directement)
   parent_bde_id  INT UNSIGNED DEFAULT NULL COMMENT 'BDE parent (NULL = rattaché à la Corpo)',
+  -- Écoles autorisées à demander à rejoindre cette structure
+  -- NULL ou [] = toutes les écoles ; sinon liste blanche d'écoles (ex: ["ECE","ESCE"]).
   ecoles_eligibles JSON DEFAULT NULL COMMENT 'Liste des écoles autorisées à rejoindre, NULL = toutes',
   date_debut_mandat DATE DEFAULT NULL COMMENT 'Début du mandat / période d''activité (NULL = pas de limite)',
   date_fin_mandat   DATE DEFAULT NULL COMMENT 'Fin du mandat (NULL = activité à vie si début vide aussi)',
@@ -81,14 +107,20 @@ INSERT INTO associations (slug, nom, ecole, type, campus, description, membres, 
 ('tutorat-ece',      'Tutorat ECE',          'ECE',       'Association', 'Citadelle',  "Association de tutorat de l'ECE. Étudiants avancés accompagnent les plus juniors en maths, physique, informatique et autres matières.",                                                  35, 'tutorat.ece.lyon@gmail.com',   'tutorat_ece',         0, '#007179', NULL),
 ('sdi-ece',          'SDI',                  'ECE',       'Association', 'Citadelle',  "Le Séminaire d'Intégration de l'ECE organise l'accueil des nouveaux étudiants. Week-end d'intégration, parrainage des premières années.",                                               16, 'sdi.ece.lyon@gmail.com',       'sdi_ece_lyon',        0, '#007179', NULL);
 
+-- Lier les assos de chaque école à leur structure faîtière (parent_bde_id).
+-- On rattache TOUT ce qui n'est pas BDE / BDS / Corpo / Fédération :
 -- c.-à-d. Association, Junior, Club, etc. (ex: JEECE = type 'Junior' à l'ECE).
+-- Les fédérations (EchoFed) restent autonomes : parent_bde_id = NULL.
 UPDATE associations SET parent_bde_id = (SELECT id FROM (SELECT id FROM associations WHERE slug='bde-ginfinity') t)
 WHERE ecole='ECE' AND type NOT IN ('BDE','BDS','Corpo','Fédération');
+-- HEIP : les assos dépendent d'EchoFed (fédération), pas du BDE
 UPDATE associations SET parent_bde_id = (SELECT id FROM (SELECT id FROM associations WHERE slug='echofed') t)
 WHERE ecole='HEIP' AND type NOT IN ('BDE','BDS','Corpo','Fédération');
 UPDATE associations SET parent_bde_id = (SELECT id FROM (SELECT id FROM associations WHERE slug='bde-newolf') t)
 WHERE ecole='ESCE' AND type NOT IN ('BDE','BDS','Corpo','Fédération');
 
+-- ─── SPORTS ───────────────────────────────────────────────
+-- Chaque sport DOIT être relié à un BDS (OMNES Sport ou BDS d'école).
 -- parent_bds_id est OBLIGATOIRE - jamais NULL en pratique.
 CREATE TABLE IF NOT EXISTS sports (
   id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -109,6 +141,8 @@ CREATE TABLE IF NOT EXISTS sports (
 ) ENGINE=InnoDB;
 
 -- Insertion des sports clubs - parent_bds_id = OMNES Sport (récupéré via sous-requête)
+-- Tous les clubs inter-école appartiennent à OMNES Sport par défaut.
+-- Si un sport appartient à un BDS d'école précis, mettre son slug à la place de 'omnes-sport'.
 INSERT INTO sports (slug, nom, icon, couleur, categorie, description, campus, places, inscrits, parent_bds_id)
 SELECT 'basket', 'Basketball', '🏀', '#FF9500', 'club',
   "Deux séances par semaine au gymnase Citroën. On joue en championnat universitaire lyonnais et on organise un tournoi 3×3 à l'automne. Tous niveaux bienvenus.",
@@ -126,6 +160,7 @@ SELECT 'cheerleading', 'Cheerleading', '📣', '#8B2FC9', 'club',
   "Zéro prérequis, zéro prise de tête. On répète mardi soir et jeudi midi à Citadelle. L'équipe prépare un showcase pour décembre - les nouvelles têtes sont les bienvenues.",
   'Citadelle', 20, 17, id FROM associations WHERE slug='omnes-sport';
 
+-- ─── SPORT_REFERENTS ──────────────────────────────────────
 CREATE TABLE IF NOT EXISTS sport_referents (
   id        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   sport_id  INT UNSIGNED NOT NULL,
@@ -142,6 +177,7 @@ INSERT INTO sport_referents (sport_id, initiales, nom, role, email) VALUES
 (3, 'AL', 'Alexandre Lopes', 'Capitaine', 'rugby.omnes.lyon@gmail.com'),
 (4, 'CL', 'Camille Laurent', 'Capitaine', 'cheer.omnes.lyon@gmail.com');
 
+-- ─── SPORT_ENTRAINEMENTS ──────────────────────────────────
 CREATE TABLE IF NOT EXISTS sport_entrainements (
   id        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   sport_id  INT UNSIGNED NOT NULL,
@@ -161,6 +197,7 @@ INSERT INTO sport_entrainements (sport_id, jour, heure, lieu) VALUES
 (4, 'Mardi',    '18h30 – 20h00', 'Gymnase Campus Citadelle'),
 (4, 'Jeudi',    '12h30 – 14h00', 'Gymnase Campus Citadelle');
 
+-- ─── SPORT_EVENEMENTS ─────────────────────────────────────
 CREATE TABLE IF NOT EXISTS sport_evenements (
   id        INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   sport_id  INT UNSIGNED NOT NULL,
@@ -176,6 +213,7 @@ INSERT INTO sport_evenements (sport_id, titre, date, lieu) VALUES
 (3, 'Challenge Universitaire Rhône-Alpes', '2026-11-14', 'Stade de la Plaine - Lyon'),
 (4, 'Showcase inter-écoles',               '2026-12-05', 'Campus Citadelle - Grand Hall');
 
+-- ─── SPORT_RESULTATS ──────────────────────────────────────
 CREATE TABLE IF NOT EXISTS sport_resultats (
   id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   sport_id   INT UNSIGNED NOT NULL,
@@ -195,6 +233,14 @@ INSERT INTO sport_resultats (sport_id, adversaire, score, date, victoire) VALUES
 (3, 'IEP Lyon',         '31 – 12',           '2026-03-05', 1),
 (4, 'Showcase rentrée', "Médaille d'argent", '2026-09-20', 1);
 
+-- ─── EVENEMENTS ───────────────────────────────────────────
+-- Modes d'inscription supportés :
+--   aucune                = affichage seulement, pas d'inscription
+--   email                 = inscription gratuite par email (sans compte)  → billet QR
+--   connexion             = inscription gratuite par connexion (compte)   → billet QR
+--   externe               = redirection vers une billetterie externe (lien)
+--   billetterie_email     = paiement SumUp + email (sans compte)          → billet QR
+--   billetterie_connexion = paiement SumUp + compte requis                → billet QR
 -- (interne / billetterie = valeurs legacy, conservées dans l'ENUM pour rétrocompat)
 CREATE TABLE IF NOT EXISTS evenements (
   id                       INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -211,23 +257,23 @@ CREATE TABLE IF NOT EXISTS evenements (
   structure_id             INT UNSIGNED DEFAULT NULL,
   type                     VARCHAR(50),
   description              TEXT,
+  -- Mode d'inscription (5 modes finaux + 2 alias legacy)
   mode_inscription         ENUM('aucune','email','interne','connexion','externe','billetterie','billetterie_email','billetterie_connexion') DEFAULT 'aucune',
   lien_billetterie         VARCHAR(255) DEFAULT NULL,
   email_contact            VARCHAR(150) DEFAULT NULL COMMENT 'Adresse de réception des inscriptions par mail',
   inscription_message      TEXT         DEFAULT NULL COMMENT 'Message d''information affiché aux participants',
   places                   INT          DEFAULT 0,
   inscrits                 INT          DEFAULT 0  COMMENT 'Compteur mis à jour auto',
+  -- Billetterie (modes billetterie_*)
   prix                     DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Prix de base (utilisé si aucun tarif défini dans evenement_tarifs)',
   prix_membre              DECIMAL(10,2) DEFAULT NULL          COMMENT 'Prix membre (NULL = même prix)',
   max_billets_par_personne TINYINT UNSIGNED NOT NULL DEFAULT 1 COMMENT 'Nombre max de billets par personne',
   inscriptions_ouvertes_le DATETIME     DEFAULT NULL,
   inscriptions_fermees_le  DATETIME     DEFAULT NULL,
   ouvert_externes          TINYINT(1)   NOT NULL DEFAULT 1     COMMENT '1 = inscription ouverte aux personnes hors écoles invitées (modes email & billetterie_email)',
-  icon                     VARCHAR(32)  DEFAULT NULL COMMENT 'Emoji ou pictogramme (UTF-8)',
+  icon                     VARCHAR(32)  DEFAULT NULL COMMENT 'Emoji ou icône courte (UTF-8)',
   banniere                 VARCHAR(255) DEFAULT NULL COMMENT 'Image bannière (chemin relatif ou URL)',
-  -- public = agenda général ; membres = visible seulement par les adhérents/membres de la structure (+ page asso / mes assos)
-  visibilite               ENUM('public','membres') NOT NULL DEFAULT 'public',
-  inscription_membres      TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = inscription réservée aux adhérents/membres de la structure',
+  -- Champs TV (v2)
   ecoles_invitees          JSON         DEFAULT NULL COMMENT 'Ex: ["ECE","HEIP"] ou ["Tous"]',
   campus_invites           JSON         DEFAULT NULL COMMENT 'Ex: ["Citroën"] ou ["Tous"]',
   affichage_tv             TINYINT(1)   DEFAULT 1   COMMENT '1 = visible sur les écrans TV campus',
@@ -241,6 +287,7 @@ INSERT INTO evenements (slug, titre, date, heure, lieu, campus, organisateur, st
  "La grande soirée d'intégration inter-écoles pour accueillir les nouveaux étudiants des cinq écoles Omnes Lyon. Une nuit pour se rencontrer, créer des liens et démarrer l'année ensemble.",
  'connexion', 300, '🎉', '["Tous"]', '["Citroën","Citadelle"]', 1, 'publie');
 
+-- ─── PARTENAIRES ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS partenaires (
   id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   nom             VARCHAR(150) NOT NULL,
@@ -266,6 +313,7 @@ INSERT INTO partenaires (nom, type, logo, offre, code, campus, lien, description
 ('Co-Working Station Lyon',   'Travail',      'images/partner-placeholder.png', '1 journée gratuite / mois',       'CORPORWORK',   'Tous',      '#', 'Espace de co-working au cœur de Lyon Confluence. Idéal pour les projets associatifs, les juniors entreprises et les startups étudiantes.', 'corpo', 'publie'),
 ('Association solidaire du Rhône', 'RSE',     'images/partner-placeholder.png', 'Opportunités de bénévolat',       NULL,           'Tous',      '#', 'Partenariat RSE : les étudiants peuvent rejoindre les actions de terrain (maraudes, ateliers) et valider des heures de bénévolat.', 'corpo', 'publie');
 
+-- ─── ACTUALITES ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS actualites (
   id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   titre          VARCHAR(255) NOT NULL,
@@ -280,15 +328,29 @@ CREATE TABLE IF NOT EXISTS actualites (
   FOREIGN KEY (auteur_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- ─── STRUCTURE_MEMBRES ────────────────────────────────────
+-- Lie un user à une structure quelconque
 -- structure_type : asso / bde / sport / bds
 -- role_in_struct : admin (gère) / membre (consulte)
+-- La hiérarchie :
+--   admin BDE  → peut gérer toutes les assos dont parent_bde_id = ce BDE
+--   admin BDS  → peut gérer tous les sports dont parent_bds_id = ce BDS
+--   admin asso → gère seulement son asso
+--   admin sport→ gère seulement son sport
 CREATE TABLE IF NOT EXISTS structure_membres (
   id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id         INT UNSIGNED NOT NULL,
   structure_type  ENUM('asso','bde','sport','bds') NOT NULL,
   structure_id    INT UNSIGNED NOT NULL,
   -- 3 niveaux :
+  --   adherent = participe à la vie de l'asso, ne gère rien (demande via le site).
+  --              Non affiché sur la page publique de l'asso.
+  --   membre   = membre actif (équipe), pas d'admin sur le site.
+  --              Affiché sur la page publique.
+  --   admin    = bureau de l'asso, droits admin sur le site.
+  --              Affiché sur la page publique avec un badge "Bureau".
   role_in_struct  ENUM('admin','membre','adherent') DEFAULT 'adherent',
+  -- Rôles fonctionnels cumulables (0/1), hors bureau ; le bureau (admin) a tous les droits.
   resp_evenement      TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Responsable événements',
   resp_partenariat    TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Responsable partenariats',
   resp_communication  TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Responsable communication (actus)',
@@ -301,6 +363,8 @@ CREATE TABLE IF NOT EXISTS structure_membres (
   UNIQUE KEY unique_membre (user_id, structure_type, structure_id)
 ) ENGINE=InnoDB;
 
+-- ─── INSCRIPTIONS SPORT ───────────────────────────────────
+-- Inscription directe d'un étudiant à un sport de club
 CREATE TABLE IF NOT EXISTS inscriptions_sport (
   id         INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id    INT UNSIGNED NOT NULL,
@@ -313,6 +377,8 @@ CREATE TABLE IF NOT EXISTS inscriptions_sport (
   FOREIGN KEY (sport_id) REFERENCES sports(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- ─── INSCRIPTIONS EVENEMENT (billetterie unifiée) ─────────
+-- Une ligne = un billet (avec QR). Une personne peut avoir plusieurs lignes
 -- (achat multi-billets, ou achat invité sans compte).
 -- user_id est nullable pour permettre les achats sans compte (modes "email"
 -- et "billetterie_email"). On identifie alors le participant via email + nom + prenom.
@@ -322,17 +388,21 @@ CREATE TABLE IF NOT EXISTS inscriptions_evenement (
   evenement_id       INT UNSIGNED NOT NULL,
   tarif_id           INT UNSIGNED DEFAULT NULL    COMMENT 'NULL si pas de tarif catégorisé (mode email gratuit, etc.)',
   statut             ENUM('en_attente','confirme','refuse','liste_attente','annule','rembourse') DEFAULT 'confirme',
+  -- Contact (peut différer du compte pour les achats invités)
   email              VARCHAR(150) DEFAULT NULL,
   nom                VARCHAR(120) DEFAULT NULL,
   prenom             VARCHAR(120) DEFAULT NULL,
+  -- QR code (billet)
   qr_token           VARCHAR(64)  DEFAULT NULL UNIQUE COMMENT 'Token aléatoire encodé dans le QR',
   qr_scanned_at      DATETIME     DEFAULT NULL        COMMENT 'Horodatage du scan d''entrée',
   qr_scanned_by      INT UNSIGNED DEFAULT NULL        COMMENT 'User_id du scanneur',
+  -- Paiement (modes billetterie_*)
   prix_paye          DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   code_promo_utilise VARCHAR(40)  DEFAULT NULL    COMMENT 'Code promo appliqué à cette inscription',
   paiement_statut    ENUM('aucun','en_attente','paye','rembourse','echec') NOT NULL DEFAULT 'aucun',
   paiement_provider  VARCHAR(40)  DEFAULT NULL COMMENT 'sumup | stripe | manuel | mock',
   paiement_ref       VARCHAR(150) DEFAULT NULL COMMENT 'ID de la transaction côté provider',
+  -- File d'attente
   waitlist_position  INT UNSIGNED DEFAULT NULL COMMENT 'Position dans la file (1 = premier promu)',
   created_at         TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
   KEY idx_insc_evt (evenement_id),
@@ -344,6 +414,9 @@ CREATE TABLE IF NOT EXISTS inscriptions_evenement (
   FOREIGN KEY (qr_scanned_by) REFERENCES users(id)     ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- ─── EVENEMENT_TARIFS ──────────────────────────────────────
+-- Catégories de billets pour un événement (Standard, Étudiant, VIP, Early bird…)
+-- Si aucune ligne pour un événement → on retombe sur `evenements.prix`.
 CREATE TABLE IF NOT EXISTS evenement_tarifs (
   id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   evenement_id      INT UNSIGNED NOT NULL,
@@ -361,6 +434,8 @@ CREATE TABLE IF NOT EXISTS evenement_tarifs (
   FOREIGN KEY (evenement_id) REFERENCES evenements(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- ─── CODES_PROMO ───────────────────────────────────────────
+-- Codes de réduction : par event + tarif (ou tous), pourcentage ou montant fixe.
 CREATE TABLE IF NOT EXISTS codes_promo (
   id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   code                VARCHAR(40)  NOT NULL,
@@ -379,6 +454,7 @@ CREATE TABLE IF NOT EXISTS codes_promo (
   FOREIGN KEY (tarif_id) REFERENCES evenement_tarifs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- ─── DEMANDES_VALIDATION ──────────────────────────────────
 CREATE TABLE IF NOT EXISTS demandes_validation (
   id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   user_id         INT UNSIGNED NOT NULL,
@@ -397,6 +473,8 @@ CREATE TABLE IF NOT EXISTS demandes_validation (
   FOREIGN KEY (validated_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- ─── DEMANDES_ADHESION ────────────────────────────────────
+-- Demandes pour rejoindre une structure
 -- structure_type élargi : asso / bde / sport / bds
 CREATE TABLE IF NOT EXISTS demandes_adhesion (
   id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -411,6 +489,7 @@ CREATE TABLE IF NOT EXISTS demandes_adhesion (
   FOREIGN KEY (traite_par) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- ─── DEMANDES_PARTENARIAT EXTERNE ─────────────────────────
 CREATE TABLE IF NOT EXISTS demandes_partenariat (
   id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   nom_contact  VARCHAR(150),
@@ -422,6 +501,9 @@ CREATE TABLE IF NOT EXISTS demandes_partenariat (
   created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
+-- ─── CALENDRIER SCOLAIRE ──────────────────────────────────
+-- Planning académique par école (vacances, examens, rattrapages…)
+-- Alimenté par les BDE de chaque école, consulté lors de la planification d'événements.
 CREATE TABLE IF NOT EXISTS calendrier_scolaire (
   id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   ecole       VARCHAR(80) NOT NULL COMMENT 'ECE | ESCE | HEIP | INSEEC Bachelor | … | Tous',
@@ -436,6 +518,9 @@ CREATE TABLE IF NOT EXISTS calendrier_scolaire (
   FOREIGN KEY (auteur_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- ─── DEMANDES_RENSEIGNEMENT_EVENEMENT (legacy) ────────────
+-- Anciennes "demandes de renseignement par mail" (avant la refonte ticketing).
+-- Conservée pour ne pas perdre l'historique ; n'est plus alimentée par défaut.
 CREATE TABLE IF NOT EXISTS demandes_renseignement_evenement (
   id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   evenement_id  INT UNSIGNED NOT NULL,
@@ -449,6 +534,8 @@ CREATE TABLE IF NOT EXISTS demandes_renseignement_evenement (
   FOREIGN KEY (evenement_id) REFERENCES evenements(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- ─── BILLETTERIE - TRANSACTIONS DE PAIEMENT ───────────────
+-- Journal des tentatives de paiement (modes billetterie_email / billetterie_connexion).
 CREATE TABLE IF NOT EXISTS paiement_transactions (
   id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   evenement_id    INT UNSIGNED NOT NULL,
@@ -466,6 +553,7 @@ CREATE TABLE IF NOT EXISTS paiement_transactions (
   FOREIGN KEY (evenement_id) REFERENCES evenements(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- ─── BOUTIQUE (produits par asso, commandes SumUp / Stripe) ─
 CREATE TABLE IF NOT EXISTS boutique_produits (
   id                      INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   structure_type          ENUM('asso','bde','bds','sport') NOT NULL DEFAULT 'asso',
@@ -519,6 +607,10 @@ CREATE TABLE IF NOT EXISTS boutique_commande_lignes (
   CONSTRAINT fk_boutique_ligne_prod FOREIGN KEY (produit_id) REFERENCES boutique_produits(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
+-- ─── COMPTABILITE ─────────────────────────────────────────
+-- Gestion financière par structure (asso / bde / bds / sport).
+-- Chaque structure peut avoir 1..N comptes (caisse, banque, …),
+-- N catégories de recettes/dépenses, et un journal de transactions
 -- éventuellement liées à un événement.
 CREATE TABLE IF NOT EXISTS compta_comptes (
   id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -578,6 +670,7 @@ CREATE TABLE IF NOT EXISTS compta_transactions (
   FOREIGN KEY (cree_par)     REFERENCES users(id)             ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
+-- ─── MAIL : VÉRIFICATION COMPTE + RÉINITIALISATION MOT DE PASSE ─
 -- Tokens jetables, hachés côté serveur (sha256) ; un token clair n'existe que
 -- dans l'URL envoyée par mail. Expiration : 24 h pour vérif compte, 1 h pour
 -- reset mot de passe.
@@ -606,6 +699,7 @@ CREATE TABLE IF NOT EXISTS password_resets (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- Catégories par défaut (modèles, structure_type/id = NULL ⇒ recopiées pour chaque structure)
 INSERT INTO compta_categories (structure_type, structure_id, nom, type, couleur, icone) VALUES
 (NULL, NULL, 'Cotisations',       'recette', '#27ae60', 'card'),
 (NULL, NULL, 'Billetterie',       'recette', '#2980b9', 'ticket'),
@@ -623,10 +717,23 @@ INSERT INTO compta_categories (structure_type, structure_id, nom, type, couleur,
 (NULL, NULL, 'Frais bancaires',   'depense', '#95a5a6', 'bank'),
 (NULL, NULL, 'Autres dépenses',   'depense', '#7f8c8d', 'minus');
 
+-- ============================================================
+-- ── MIGRATIONS (bases existantes) ───────────────────────────
+-- Ne pas rejouer à la main sur une base importée depuis ce fichier :
 -- `admin/migrate.php` applique les ALTER manquants de façon idempotente.
+-- Exemples gérés par migrate.php (liste non exhaustive) :
+--   • calendrier_scolaire.promotions
+--   • evenements : colonnes billetterie, mode_inscription ENUM élargi, ouvert_externes
 --   • inscriptions_evenement : QR, paiement, tarif_id, code_promo_utilise, user_id nullable, DROP uniq user+event
+--   • evenement_tarifs (+ frais_a_charge_client), codes_promo, paiement_transactions
+--   • associations : ecoles_eligibles, parent_bde_id, logo (+ FK parent_bde_id si absente)
+--   • sports : logo, lien_acces, infra_partenaire, parent_bds_id (migration groupée sports_misc_cols)
 --   • compta_comptes, compta_categories, compta_transactions + INSERT catégories par défaut
+-- ============================================================
 -- ALTER TABLE demandes_validation
+--   MODIFY COLUMN type ENUM('evenement','partenaire','offre_partenaire','actualite','contenu','sport','nouvelle_asso') NOT NULL;
 -- ALTER TABLE evenements
+--   MODIFY COLUMN mode_inscription
+--   ENUM('aucune','email','interne','connexion','externe','billetterie','billetterie_email','billetterie_connexion') DEFAULT 'aucune';
 -- UPDATE evenements SET mode_inscription='connexion'             WHERE mode_inscription='interne';
 -- UPDATE evenements SET mode_inscription='billetterie_connexion' WHERE mode_inscription='billetterie';

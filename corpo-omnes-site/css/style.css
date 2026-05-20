@@ -1,6 +1,9 @@
+/* ============================================================
+   Corpo Omnes Lyon - Design System v4
+   Palette DA · Glassmorphisme · 8pt grid · Fluid type
+   ============================================================ */
 
-
-
+/* ── TOKENS ────────────────────────────────────────────────── */
 :root {
   /* Palette DA */
   --bg:            #190038;
@@ -71,7 +74,7 @@
   --ease-spring: cubic-bezier(.34,1.56,.64,1);
 }
 
-
+/* ── RESET ──────────────────────────────────────────────────── */
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
 html,body { overflow-x: hidden; }
@@ -89,7 +92,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 :focus-visible { outline: 2px solid var(--purple-light); outline-offset: 3px; border-radius: var(--r-sm); }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
 
-
+/* ── CONTAINER ──────────────────────────────────────────────── */
 .container {
   max-width: var(--max-w);
   margin: 0 auto;
@@ -97,7 +100,9 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   width: 100%;
 }
 
-
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
 .nav {
   position: fixed;
   inset: 0 0 auto;
@@ -142,6 +147,15 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   align-items: center;
   gap: 2px;
 }
+@media (min-width: 769px) {
+  .nav__item--search {
+    margin-left: var(--s4);
+    margin-right: var(--s3);
+  }
+  .nav__item--dropdown--account {
+    margin-left: var(--s2);
+  }
+}
 .nav__link {
   display: block;
   padding: .4rem .9rem;
@@ -163,7 +177,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 }
 .nav__link--cta:hover { background: var(--purple-light, #7c3aed); }
 
-
+/* ── DROPDOWN MENU ──────────────────────────────────────── */
 .nav__item--dropdown { position: relative; }
 
 .nav__dropdown-toggle {
@@ -255,7 +269,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   color: #fff;
 }
 
-
+/* ── PAGE INSCRIPTION (register.php) ──────────────────────── */
 /* Décalage pour le nav fixe + padding haut */
 .register-wrap { max-width: 560px; margin: 0 auto; padding: calc(66px + var(--s10)) var(--s6) var(--s10); }
 .register-card {
@@ -316,7 +330,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
   border-bottom: 2.5px solid #86efac;
 }
 
-
+/* ── verify-email.php - carte d'activation/erreurs ─────────────── */
 .verify-card {
   max-width: 420px;
   margin: 0 auto;
@@ -359,7 +373,9 @@ a.link:hover { color: #fff; }
 .nav__toggle.open span:nth-child(2) { opacity: 0; }
 .nav__toggle.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
-
+/* ============================================================
+   HERO - ACCUEIL
+   ============================================================ */
 @keyframes mesh {
   0%   { background-position: 0% 50%; }
   50%  { background-position: 100% 50%; }
@@ -504,7 +520,9 @@ a.link:hover { color: #fff; }
   animation: fade-up .7s .38s ease both;
 }
 
-
+/* ============================================================
+   PAGE HERO (sous-pages)
+   ============================================================ */
 .page-hero {
   padding: calc(66px + var(--s16)) var(--px) var(--s12);
   background: var(--bg-deep);
@@ -536,7 +554,9 @@ a.link:hover { color: #fff; }
   line-height: 1.7;
 }
 
-
+/* ============================================================
+   BREADCRUMB
+   ============================================================ */
 .breadcrumb {
   display: flex;
   align-items: center;
@@ -548,7 +568,9 @@ a.link:hover { color: #fff; }
 .breadcrumb a { color: var(--purple-light); transition: color var(--ease); }
 .breadcrumb a:hover { color: #fff; }
 
-
+/* ============================================================
+   BOUTONS
+   ============================================================ */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -585,7 +607,9 @@ a.link:hover { color: #fff; }
 .btn--sm { padding: .4rem 1.1rem; font-size: .72rem; }
 .btn--lg { padding: .9rem 2.4rem; font-size: .9rem; }
 
-
+/* ============================================================
+   SECTIONS
+   ============================================================ */
 .section { padding: var(--s20) 0; }
 .section--alt { background: var(--bg-deep); }
 .section--light { background: #F5F2FA; color: var(--bg); }
@@ -643,7 +667,9 @@ a.link:hover { color: #fff; }
 .section--light .lead { color: #4A4870; }
 .section--light .lead strong { color: var(--bg); }
 
-
+/* ============================================================
+   GRIDS
+   ============================================================ */
 .grid { display: grid; gap: var(--s5); }
 .grid--2  { grid-template-columns: repeat(2,1fr); }
 .grid--3  { grid-template-columns: repeat(3,1fr); }
@@ -652,7 +678,9 @@ a.link:hover { color: #fff; }
 .grid--auto    { grid-template-columns: repeat(auto-fill,minmax(280px,1fr)); }
 .grid--auto-sm { grid-template-columns: repeat(auto-fill,minmax(200px,1fr)); }
 
-
+/* ============================================================
+   STATS BAND
+   ============================================================ */
 .stats-band {
   background: rgba(255,255,255,.032);
   border-top: 1px solid var(--border);
@@ -685,7 +713,9 @@ a.link:hover { color: #fff; }
   letter-spacing: .12em;
 }
 
-
+/* ============================================================
+   CARDS (génériques)
+   ============================================================ */
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -721,7 +751,9 @@ a.link:hover { color: #fff; }
 .card--light .card__list li { color: #6E6CB0; }
 .card__actions { display: flex; gap: var(--s2); margin-top: var(--s5); flex-wrap: wrap; }
 
-
+/* ============================================================
+   SCHOOL CARDS
+   ============================================================ */
 .school-card {
   background: #fff;
   border-radius: var(--r-lg);
@@ -753,7 +785,9 @@ a.link:hover { color: #fff; }
 .school-card__type   { font-size: .72rem; font-weight: 700; color: #6E6CB0; text-transform: uppercase; letter-spacing: .06em; margin-bottom: var(--s1); }
 .school-card__campus { font-size: .78rem; color: #9F9EB7; }
 
-
+/* ============================================================
+   CAMPUS CARDS
+   ============================================================ */
 .campus-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -776,7 +810,9 @@ a.link:hover { color: #fff; }
 .campus-card__info { font-size: .85rem; color: var(--blue-light); }
 .campus-card__info strong { color: #fff; }
 
-
+/* ============================================================
+   AXES STRATÉGIQUES
+   ============================================================ */
 .axe-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -805,7 +841,9 @@ a.link:hover { color: #fff; }
 .axe-card__list li { font-size: .875rem; color: var(--blue-light); padding-left: var(--s4); position: relative; }
 .axe-card__list li::before { content: '▸'; position: absolute; left: 0; color: var(--purple-mid); }
 
-
+/* ============================================================
+   TAGS
+   ============================================================ */
 .tag {
   display: inline-block;
   padding: .18rem .65rem;
@@ -826,7 +864,9 @@ a.link:hover { color: #fff; }
 .tag--fed    { color: #e07b00; border-color: #e07b00; }
 .tag--junior { color: #1a9e6e; border-color: #1a9e6e; }
 
-
+/* ============================================================
+   FILTRES & RECHERCHE
+   ============================================================ */
 .filter-chips {
   display: flex;
   flex-wrap: wrap;
@@ -886,7 +926,9 @@ a.link:hover { color: #fff; }
   font-style: italic;
 }
 
-
+/* ============================================================
+   ASSOCIATION CARDS
+   ============================================================ */
 .asso-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -942,7 +984,9 @@ a.link:hover { color: #fff; }
   color: var(--green); border: 1px solid var(--green); padding: .12rem .55rem; border-radius: var(--r-pill);
 }
 
-
+/* ============================================================
+   DRAWER
+   ============================================================ */
 .drawer-overlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,.65);
@@ -1019,7 +1063,9 @@ a.link:hover { color: #fff; }
   border-top: 1px solid var(--border);
 }
 
-
+/* ============================================================
+   ÉVÉNEMENTS
+   ============================================================ */
 .priority-legend { display: flex; gap: var(--s3); flex-wrap: wrap; margin-bottom: var(--s5); }
 .priority-badge {
   font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: .09em;
@@ -1030,7 +1076,7 @@ a.link:hover { color: #fff; }
 .priority-badge--3 { color: var(--green); border-color: var(--green); }
 .priority-badge--4 { color: var(--blue-light); border-color: var(--blue-light); }
 
-
+/* ── AGENDA LAYOUT ─────────────────────────────────────── */
 .agenda-layout {
   display: grid;
   grid-template-columns: 1fr;
@@ -1040,7 +1086,7 @@ a.link:hover { color: #fff; }
   .agenda-layout { grid-template-columns: 340px 1fr; align-items: start; }
 }
 
-
+/* ── CALENDRIER ────────────────────────────────────────── */
 .cal-block {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1101,7 +1147,7 @@ a.link:hover { color: #fff; }
   border-radius: 50%;
 }
 
-
+/* ── AGENDA EVENTS (colonne droite) ─────────────────────── */
 .agenda-events { display: flex; flex-direction: column; gap: var(--s5); }
 
 .event-card {
@@ -1156,7 +1202,9 @@ a.link:hover { color: #fff; }
   align-self: center;
 }
 
-
+/* ============================================================
+   SPORT
+   ============================================================ */
 .tabs {
   display: flex; gap: 3px;
   background: rgba(255,255,255,.04);
@@ -1182,7 +1230,9 @@ a.link:hover { color: #fff; }
 .tab-panel { display: block; }
 .tab-panel[hidden] { display: none; }
 
-
+/* ── SPORT HUB CARDS ────────────────────────────────────── */
+/* layout 2 colonnes sur desktop, 1 colonne sur mobile
+   - a vérifier sur tablette ca deborde peut etre */
 .sport-hub-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -1191,6 +1241,8 @@ a.link:hover { color: #fff; }
 }
 @media (min-width: 760px) { .sport-hub-grid { grid-template-columns: repeat(2, 1fr); } }
 
+/* carte horizontale : bloc couleur à gauche + contenu à droite
+   border-radius a 6px c'est intentionel, pas de gros arrondis */
 .sport-hub-card {
   display: grid;
   grid-template-columns: 80px 1fr;
@@ -1202,6 +1254,7 @@ a.link:hover { color: #fff; }
 }
 .sport-hub-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,.35); }
 
+/* bloc gauche coloré avec l'emoji - largeur fixe a 80px jsp si c'est assez */
 .sport-hub-card__left {
   background: var(--sport-color, var(--purple));
   display: flex;
@@ -1216,6 +1269,7 @@ a.link:hover { color: #fff; }
   letter-spacing: -.02em;
 }
 
+/* contenu droit */
 .sport-hub-card__right {
   padding: var(--s4) var(--s5);
   display: flex;
@@ -1282,6 +1336,7 @@ a.link:hover { color: #fff; }
   flex-direction: column;
   gap: 3px;
 }
+/* petite barre de remplissage - peut etre a enlever si ca fait trop chargé */
 .sport-hub-card__bar-track {
   width: 80px;
   height: 3px;
@@ -1295,7 +1350,7 @@ a.link:hover { color: #fff; }
   transition: width .5s ease;
 }
 
-
+/* ── SPORTS INDIVIDUELS ─────────────────────────────────── */
 .sport-indiv-grid {
   display: flex;
   flex-direction: column;
@@ -1346,7 +1401,7 @@ a.link:hover { color: #fff; }
   flex-shrink: 0;
 }
 
-
+/* ── RÉSULTATS GRID ─────────────────────────────────────── */
 .results-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -1387,7 +1442,7 @@ a.link:hover { color: #fff; }
 .result-item--draw .result-item__label { background: rgba(255,149,0,.15);  color: #FF9500; }
 .result-item__date { font-size: .72rem; color: var(--text-muted); }
 
-
+/* ── SPORT DETAIL PAGE ──────────────────────────────────── */
 .sport-detail-layout {
   display: grid;
   grid-template-columns: 1fr;
@@ -1445,7 +1500,7 @@ a.link:hover { color: #fff; }
 .result-row__score { font-weight: 800; }
 .result-row__date  { font-size: .72rem; color: var(--text-muted); margin-left: auto; }
 
-
+/* ── ASIDE SPORT DETAIL ──────────────────────────────────── */
 .sport-detail-aside { display: flex; flex-direction: column; gap: var(--s4); }
 
 .sport-aside-card {
@@ -1496,7 +1551,9 @@ a.link:hover { color: #fff; }
 .link-accent { color: var(--purple-light); transition: color var(--ease); }
 .link-accent:hover { color: #fff; }
 
-
+/* ============================================================
+   PARTENAIRES - Hero stats
+   ============================================================ */
 .pt-hero-stats {
   display: flex; gap: var(--s6); margin-top: var(--s8);
   flex-wrap: wrap;
@@ -1512,7 +1569,9 @@ a.link:hover { color: #fff; }
   font-size: .72rem; color: rgba(255,255,255,.5); text-transform: uppercase; letter-spacing: .07em; margin-top: .2rem;
 }
 
-
+/* ============================================================
+   PARTENAIRES - Barre de filtres
+   ============================================================ */
 .pt-filter-bar {
   display: flex; align-items: center; justify-content: space-between;
   flex-wrap: wrap; gap: var(--s4);
@@ -1561,7 +1620,9 @@ a.link:hover { color: #fff; }
 
 .pt-filter-count { font-size: .75rem; color: var(--text-muted); white-space: nowrap; }
 
-
+/* ============================================================
+   PARTENAIRES - Grille de cartes
+   ============================================================ */
 .pt-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -1653,7 +1714,7 @@ a.link:hover { color: #fff; }
 }
 .pt-card__btn:hover { background: var(--purple); border-color: var(--purple); color: #fff; }
 
-
+/* ─── Boutique publique (boutique.php) - alignée DA événements / partenaires ─── */
 .shop-main-grid {
   display: grid;
   grid-template-columns: 1fr minmax(280px, 340px);
@@ -1870,7 +1931,7 @@ a.link:hover { color: #fff; }
 }
 .shop-order p { font-size: .88rem; color: var(--blue-light); line-height: 1.55; margin: 0 0 var(--s3); }
 .shop-empty-hint { font-size: .82rem; color: var(--text-muted); margin-top: var(--s3); }
-
+/* ─ Anciens styles gardés pour compatibilité ─ */
 .partner-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px,1fr));
@@ -1889,7 +1950,9 @@ a.link:hover { color: #fff; }
 .partner-card__name { font-family: var(--font-display); font-size: .95rem; text-transform: uppercase; letter-spacing: .04em; }
 .partner-card__foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); font-size: .73rem; color: var(--blue-light); }
 
-
+/* ============================================================
+   TABLEAU PARTENAIRES (responsive)
+   ============================================================ */
 .table-wrap { overflow-x: auto; border-radius: var(--r-lg); border: 1px solid var(--border); }
 .partners-table { width: 100%; border-collapse: collapse; font-size: .865rem; }
 .partners-table thead { background: linear-gradient(90deg, var(--purple), var(--purple-mid)); }
@@ -1908,7 +1971,9 @@ a.link:hover { color: #fff; }
 .partners-table td a:hover { color: #fff; }
 .partners-table code { background: rgba(255,255,255,.08); border: 1px solid var(--border); padding: .12rem .45rem; border-radius: var(--r-sm); font-size: .78rem; color: #fff; letter-spacing: .04em; }
 
-
+/* ============================================================
+   ORGANIGRAMME
+   ============================================================ */
 .org-chart { display: flex; flex-direction: column; align-items: center; gap: var(--s5); }
 .org-level { display: flex; justify-content: center; gap: var(--s4); width: 100%; flex-wrap: wrap; }
 .org-card {
@@ -1925,7 +1990,9 @@ a.link:hover { color: #fff; }
 .org-card__role { font-family: var(--font-display); font-size: .9rem; text-transform: uppercase; letter-spacing: .05em; display: block; margin-bottom: var(--s1); }
 .org-card__desc { font-size: .74rem; color: rgba(255,255,255,.7); line-height: 1.55; }
 
-
+/* ============================================================
+   RÔLES
+   ============================================================ */
 .role-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1941,7 +2008,9 @@ a.link:hover { color: #fff; }
 .role-card__list li { font-size: .8rem; color: var(--blue-light); padding-left: var(--s4); position: relative; line-height: 1.55; }
 .role-card__list li::before { content: '–'; position: absolute; left: 0; color: var(--purple-mid); }
 
-
+/* ============================================================
+   CTA SECTION
+   ============================================================ */
 .cta-section {
   background: linear-gradient(160deg, var(--bg-deep) 0%, rgba(93,2,130,.2) 50%, var(--bg-deep) 100%);
   border-top: 1px solid var(--border);
@@ -1953,7 +2022,9 @@ a.link:hover { color: #fff; }
 .cta-section__sub { color: var(--blue-light); max-width: 520px; margin: 0 auto var(--s8); font-size: 1rem; }
 .cta-section__actions { display: flex; gap: var(--s3); justify-content: center; flex-wrap: wrap; }
 
-
+/* ============================================================
+   TODO LIST
+   ============================================================ */
 .todo-container { max-width: 760px; margin: 0 auto; }
 .todo-input-label { display: block; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; color: var(--blue-light); margin-bottom: var(--s2); }
 .todo-add-group { display: flex; gap: var(--s3); margin-top: var(--s2); }
@@ -2001,7 +2072,9 @@ a.link:hover { color: #fff; }
 .todo-item__delete:hover { background: var(--red); color: #fff; border-color: var(--red); }
 .todo-empty { text-align: center; padding: var(--s12); color: var(--blue-light); font-style: italic; border: 1px dashed var(--border); border-radius: var(--r-lg); }
 
-
+/* ============================================================
+   FAQ ACCORDÉON (jQuery feature)
+   ============================================================ */
 .faq-list {
   display: flex;
   flex-direction: column;
@@ -2060,7 +2133,9 @@ a.link:hover { color: #fff; }
 .faq-item__body a { color: var(--accent); }
 .faq-item__body a:hover { text-decoration: underline; }
 
-
+/* ============================================================
+   BOUTON RETOUR EN HAUT (jQuery feature)
+   ============================================================ */
 .back-top {
   position: fixed;
   bottom: var(--s8);
@@ -2089,7 +2164,9 @@ a.link:hover { color: #fff; }
 }
 .back-top:hover { background: var(--accent); }
 
-
+/* ============================================================
+   FOOTER
+   ============================================================ */
 .footer {
   background: var(--bg-deep);
   border-top: 1px solid var(--border);
@@ -2154,22 +2231,30 @@ a.link:hover { color: #fff; }
 }
 .nav__dropdown-lang-sep { opacity: .45; color: rgba(255,255,255,.6); }
 
-
+/* ============================================================
+   ANIMATIONS AU SCROLL
+   ============================================================ */
 [data-reveal] { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
 [data-reveal].revealed { opacity: 1; transform: translateY(0); }
 
-
+/* ============================================================
+   UTILITAIRES
+   ============================================================ */
 .text-center { text-align: center; }
 .divider { height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: var(--s4) 0; }
 
-
+/* ============================================================
+   RESPONSIVE - 1024px
+   ============================================================ */
 @media (max-width: 1024px) {
   .grid--5 { grid-template-columns: repeat(3,1fr); }
   .footer__grid { grid-template-columns: 1fr 1fr; }
   .footer__grid > .footer__col:first-child { grid-column: 1/-1; }
 }
 
-
+/* ============================================================
+   RESPONSIVE - 900px
+   ============================================================ */
 @media (max-width: 900px) {
   .grid--4 { grid-template-columns: repeat(2,1fr); }
   .grid--3 { grid-template-columns: repeat(2,1fr); }
@@ -2177,7 +2262,9 @@ a.link:hover { color: #fff; }
   .org-card { min-width: 100%; max-width: 100%; }
 }
 
-
+/* ============================================================
+   RESPONSIVE - 768px (hamburger)
+   ============================================================ */
 @media (max-width: 768px) {
   /* Sur mobile, on retire le backdrop-filter de .nav.scrolled :
      il crée un containing block CSS qui re-cale les enfants position:fixed
@@ -2236,7 +2323,7 @@ a.link:hover { color: #fff; }
     font-size: .95rem;
   }
 
-  
+  /* ─── Sous-menus section (Corpo, Événements…) : liste plate, sans encadré ─── */
   .nav__item--dropdown:not(.nav__item--dropdown--account) {
     width: 100%;
     background: transparent;
@@ -2261,7 +2348,7 @@ a.link:hover { color: #fff; }
     background: rgba(255,255,255,.06);
   }
 
-  
+  /* ─── Mon compte : seul bloc encadré dans le burger ─── */
   .nav__item--dropdown--account {
     width: 100%;
     margin-top: var(--s4);
@@ -2381,7 +2468,11 @@ a.link:hover { color: #fff; }
   }
 }
 
+/* ============================================================
+   ÉQUIPE & GOUVERNANCE - apropos.html
+   ============================================================ */
 
+/* ── Blocs bureau / CA / pôles ───────────────────────────── */
 .team-block { margin-bottom: var(--s20); }
 .team-block:last-child { margin-bottom: 0; }
 
@@ -2589,7 +2680,9 @@ a.link:hover { color: #fff; }
   margin-top: .1rem;
 }
 
-
+/* ============================================================
+   RESPONSIVE - 600px
+   ============================================================ */
 @media (max-width: 600px) {
   :root { --px: 1rem; }
   .grid--2, .grid--3, .grid--4, .grid--5 { grid-template-columns: 1fr; }
@@ -2654,7 +2747,9 @@ a.link:hover { color: #fff; }
   }
 }
 
-
+/* ============================================================
+   CARROUSEL
+   ============================================================ */
 .carousel {
   position: relative;
   overflow: hidden;
@@ -2725,7 +2820,9 @@ a.link:hover { color: #fff; }
   margin-top: var(--s3);
 }
 
-
+/* ============================================================
+   LIGHTBOX
+   ============================================================ */
 .lightbox {
   position: fixed;
   inset: 0;
@@ -2758,7 +2855,9 @@ a.link:hover { color: #fff; }
 }
 .lightbox__close:hover { background: rgba(255,255,255,.25); }
 
-
+/* ============================================================
+   HERO TAGLINE
+   ============================================================ */
 .hero__tagline {
   font-size: 1.1rem;
   color: rgba(255,255,255,.7);
@@ -2767,7 +2866,9 @@ a.link:hover { color: #fff; }
   letter-spacing: .01em;
 }
 
-
+/* ============================================================
+   TABLEAU FORFAITS (TP bonus)
+   ============================================================ */
 .forfaits-table {
   width: 100%;
   min-width: 500px;
@@ -2826,7 +2927,9 @@ a.link:hover { color: #fff; }
   }
 }
 
-
+/* ============================================================
+   CLASSES UTILITAIRES (remplacement styles inline)
+   ============================================================ */
 .grid--cards-start { gap: .75rem; align-content: start; }
 .poles-note { text-align: center; margin-top: var(--s7); font-size: .9rem; color: var(--text-muted); }
 .role-sub { font-size: .7em; opacity: .6; }
@@ -2843,6 +2946,11 @@ a.link:hover { color: #fff; }
 .bde-item--sup   { --school-color: #FF5B05; }
 
 
+/* ============================================================
+   STYLES BACKEND PHP - sport-detail.php + evenements.php
+   ============================================================ */
+
+/* ── Layout sport-detail ── */
 .sport-detail__layout {
   display: grid;
   grid-template-columns: 1fr 300px;
@@ -2854,7 +2962,7 @@ a.link:hover { color: #fff; }
   .sport-detail__layout { grid-template-columns: 1fr; }
 }
 
-
+/* ── Section card ── */
 .section-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -2868,7 +2976,7 @@ a.link:hover { color: #fff; }
   color: #fff;
 }
 
-
+/* ── Training list ── */
 .training-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--s3); }
 .training-item {
   display: grid;
@@ -2884,7 +2992,7 @@ a.link:hover { color: #fff; }
 .training-item__hour { color: var(--blue-light); }
 .training-item__place{ color: var(--text-muted); font-size: .78rem; }
 
-
+/* ── Mini event list ── */
 .event-list-mini { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--s3); }
 .event-mini {
   display: grid;
@@ -2899,7 +3007,7 @@ a.link:hover { color: #fff; }
 .event-mini__date { font-weight: 700; color: var(--purple-light); font-size: .8rem; }
 .event-mini__lieu { display: block; font-size: .72rem; color: var(--text-muted); margin-top: 2px; }
 
-
+/* ── Mini results ── */
 .results-mini { display: flex; flex-direction: column; gap: var(--s3); }
 .result-mini {
   display: grid;
@@ -2922,7 +3030,7 @@ a.link:hover { color: #fff; }
 .result-mini--draw .result-mini__label { background: rgba(251,191,36,.2); color: #fde68a; }
 .result-mini__date { font-size: .72rem; color: var(--text-muted); }
 
-
+/* ── Aside card ── */
 .aside-card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -2935,7 +3043,7 @@ a.link:hover { color: #fff; }
 .aside-card__full  { font-size: .78rem; color: #fca5a5; margin: var(--s3) 0; }
 .aside-card__campus{ font-size: .75rem; color: var(--text-muted); margin-top: var(--s3); }
 
-
+/* ── Referent item (sport-detail) ── */
 .referent-item {
   display: flex; align-items: flex-start; gap: var(--s3);
   margin-bottom: var(--s4);
@@ -2944,7 +3052,7 @@ a.link:hover { color: #fff; }
 .referent-item__mail { display: block; font-size: .75rem; color: var(--purple-light); transition: color var(--ease); }
 .referent-item__mail:hover { color: #fff; }
 
-
+/* ── Result card win/loss/draw (sport.php) ── */
 .result-card--win  { border-color: rgba(34,197,94,.3); }
 .result-card--loss { border-color: rgba(239,68,68,.3); }
 .result-card--draw { border-color: rgba(251,191,36,.3); }
@@ -2953,14 +3061,18 @@ a.link:hover { color: #fff; }
 .result-card__outcome--loss { background: rgba(239,68,68,.15);  color: #fca5a5; }
 .result-card__outcome--draw { background: rgba(251,191,36,.15); color: #fde68a; }
 
+/* ============================================================
+   HOMEPAGE - Sections dynamiques
+   ============================================================ */
 
+/* ─ Header de section avec lien "Voir tout" ─ */
 .home-section-header {
   display: flex; align-items: flex-end; justify-content: space-between;
   gap: var(--s4); margin-bottom: var(--s6); flex-wrap: wrap;
 }
 .home-section-header .section-title { margin-bottom: 0; }
 
-
+/* ─ Événements ─ */
 .home-evt-section {}
 .home-evt-header {
   display: flex; align-items: flex-end; justify-content: space-between;
@@ -3028,7 +3140,7 @@ a.link:hover { color: #fff; }
   font-size: .82rem; font-weight: 700; border-style: dashed;
 }
 
-
+/* ─ Sports homepage ─ */
 .home-sports-grid {
   display: grid; grid-template-columns: repeat(4,1fr); gap: var(--s5);
   margin-bottom: var(--s6);
@@ -3091,7 +3203,7 @@ a.link:hover { color: #fff; }
 .home-result-pill--draw { background: rgba(251,191,36,.1); border-color: rgba(251,191,36,.3); color: #fde68a; }
 .home-result-pill__sport { font-weight: 700; opacity: .8; font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; }
 
-
+/* ─ Partenaires homepage ─ */
 .home-partners-row {
   display: grid; grid-template-columns: repeat(4,1fr); gap: var(--s4);
 }
@@ -3123,7 +3235,7 @@ a.link:hover { color: #fff; }
   border-radius: var(--r-pill); padding: .12rem .45rem;
 }
 
-
+/* ─ Actualités homepage ─ */
 .home-actus-grid {
   display: grid; grid-template-columns: repeat(3,1fr); gap: var(--s5);
 }
@@ -3147,7 +3259,9 @@ a.link:hover { color: #fff; }
 .home-actu-card__title { font-size: 1rem; font-weight: 700; line-height: 1.3; color: #fff; }
 .home-actu-card__body  { font-size: .8rem; color: var(--text-muted); line-height: 1.65; }
 
-
+/* ═══════════════════════════════════════════════════════════
+   STRUCTURE.PHP - Page détail d'une structure
+   ═══════════════════════════════════════════════════════════ */
 .struct-page { background: var(--bg); min-height: 100vh; }
 
 .struct-hero { padding: var(--s10) 0 var(--s8); }
@@ -3239,7 +3353,11 @@ a.link:hover { color: #fff; }
 .struct-event-card  { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--s5); display: flex; gap: var(--s3); transition: border-color var(--ease); }
 .struct-event-card.past { opacity: .5; }
 .struct-event-card:hover { border-color: var(--border-glow); }
-.struct-event-icon  { font-size: 1.5rem; flex-shrink: 0; }
+.struct-event-icon  {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+}
 .struct-event-body  { display: flex; flex-direction: column; gap: .3rem; flex: 1; }
 .struct-event-body strong { font-size: .9rem; font-weight: 700; }
 .struct-event-body span   { font-size: .75rem; color: var(--blue-light); }
@@ -3268,7 +3386,9 @@ a.link:hover { color: #fff; }
 .struct-member-card span   { font-size: .7rem; color: var(--text-muted); }
 .struct-member-card a      { font-size: .8rem; }
 
-
+/* ═══════════════════════════════════════════════════════════
+   MES-ASSOS.PHP / MES-SPORTS.PHP
+   ═══════════════════════════════════════════════════════════ */
 .mes-page { padding: 0 0 var(--s12); width: 100%; box-sizing: border-box; }
 .mes-page__header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s4); margin-bottom: var(--s8); }
 .mes-page__header h1 { font-size: clamp(1.6rem, 3.5vw, 2.2rem); font-weight: 800; flex: 1; }
@@ -3383,6 +3503,72 @@ a.link:hover { color: #fff; }
 .admin-card__header { padding: var(--s5) var(--s6) 0; margin-bottom: var(--s4); }
 .admin-card__header h2 { font-size: .92rem; font-weight: 700; }
 
+/* Admin — quota mails (Brevo) */
+.mail-quota__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s4);
+  margin-bottom: var(--s4);
+}
+.mail-quota__title { margin: 0 0 var(--s2); font-size: 1.05rem; font-weight: 700; }
+.mail-quota__sub { margin: 0; font-size: .78rem; color: var(--text-muted); max-width: 42rem; line-height: 1.45; }
+.mail-quota__sub code { font-size: .72rem; }
+.mail-quota__figures {
+  display: flex;
+  align-items: baseline;
+  gap: .15rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  line-height: 1;
+}
+.mail-quota__sent { font-size: 2.4rem; color: var(--blue-light); }
+.mail-quota__sep { font-size: 1.2rem; color: var(--text-muted); }
+.mail-quota__limit { font-size: 1.35rem; color: var(--text-muted); }
+.mail-quota__bar {
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, .08);
+  overflow: hidden;
+  margin-bottom: var(--s3);
+}
+.mail-quota__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--purple), var(--blue-light));
+  transition: width .35s ease;
+}
+.mail-quota--warn .mail-quota__bar-fill {
+  background: linear-gradient(90deg, #e67e22, #f1c40f);
+}
+.mail-quota--danger .mail-quota__bar-fill {
+  background: linear-gradient(90deg, #e74c3c, #c0392b);
+}
+.mail-quota__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3) var(--s5);
+  font-size: .82rem;
+  color: var(--text-muted);
+}
+.mail-quota__footer strong { color: #e9e9f0; }
+.mail-quota__alert {
+  margin: var(--s4) 0 0;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-md);
+  font-size: .82rem;
+  background: rgba(231, 76, 60, .15);
+  border: 1px solid rgba(231, 76, 60, .35);
+  color: #ffb4ae;
+}
+.mail-quota__alert--warn {
+  background: rgba(230, 126, 34, .12);
+  border-color: rgba(230, 126, 34, .35);
+  color: #f5c98a;
+}
+
 /* MES-MEMBRES - selecteur de structure */
 .ms-tab { background: rgba(255,255,255,.04); border: 1px solid var(--border); color: #e9e9f0; padding: .35rem .8rem; border-radius: var(--r-pill); font-size: .78rem; font-weight: 600; cursor: pointer; transition: background var(--ease), border-color var(--ease), color var(--ease); }
 .ms-tab:hover { background: rgba(255,255,255,.08); border-color: var(--border-glow); }
@@ -3405,6 +3591,9 @@ a.link:hover { color: #fff; }
   .ms-item { padding: .55rem var(--s3); font-size: .8rem; }
 }
 
+/* ============================================================
+   COMPTABILITÉ - admin/comptabilite.php
+   ============================================================ */
 
 /* Onglets de section */
 .cpt-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: var(--s5); overflow-x: auto; }
@@ -3527,7 +3716,9 @@ a.link:hover { color: #fff; }
 .asso-card-link { text-decoration: none; color: inherit; }
 .asso-card-link:hover .asso-card { border-color: var(--border-glow); transform: translateY(-3px); }
 
-
+/* ============================================================
+   MES-ACTUALITES - fil d'actu personnalisé
+   ============================================================ */
 .mes-actu-feed { display: flex; flex-direction: column; gap: var(--s4); }
 
 .actu-feed-item {
@@ -3566,7 +3757,9 @@ a.link:hover { color: #fff; }
 .actu-feed-content h3 { font-size: 1rem; font-weight: 700; margin-bottom: .4rem; }
 .actu-feed-content p  { font-size: .85rem; color: var(--text-muted); line-height: 1.6; }
 
-
+/* ============================================================
+   MES-EVENEMENTS - grille événements perso
+   ============================================================ */
 .mes-evt-grid { display: flex; flex-direction: column; gap: var(--s3); }
 
 .mes-evt-card {
@@ -3607,7 +3800,9 @@ a.link:hover { color: #fff; }
   .mes-evt-card__actions { flex-direction: row; }
 }
 
-
+/* ============================================================
+   MON PROFIL - formulaires compte public
+   ============================================================ */
 .profil-layout {
   display: grid;
   gap: var(--s6);
@@ -3680,6 +3875,9 @@ a.link:hover { color: #fff; }
 .profil-field__hint { font-size: .75rem; color: var(--text-muted); margin-top: var(--s2); }
 .profil-actions { margin-top: var(--s5); display: flex; flex-wrap: wrap; gap: var(--s3); }
 
+/* ============================================================
+   PAGE ÉVÉNEMENTS - agenda complet (filtres + liste + calendrier)
+   ============================================================ */
 
 /* Hero stats */
 .evt-hero-grid {
@@ -3863,18 +4061,242 @@ a.link:hover { color: #fff; }
   background: rgba(255,255,255,.08); color: #fff;
   padding: 2px 8px; border-radius: var(--r-pill);
 }
-.evt-cards { display: flex; flex-direction: column; gap: var(--s4); }
+.evt-cards { display: flex; flex-direction: column; gap: var(--s5); }
+
+/* ── Agenda : cartes liste (vue principale) ───────────────── */
+.evt-list-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  transition: border-color var(--ease), box-shadow var(--ease);
+}
+.evt-list-card:hover {
+  border-color: rgba(139, 47, 201, .45);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .22);
+}
+.evt-list-card.is-hidden { display: none !important; }
+
+.evt-list-card--cover {
+  grid-template-columns: min(38%, 220px) minmax(0, 1fr);
+}
+.evt-list-card__cover {
+  display: block;
+  min-height: 100%;
+  background: rgba(0, 0, 0, .2);
+  border-right: 1px solid var(--border);
+}
+.evt-list-card__cover img {
+  width: 100%;
+  height: 100%;
+  min-height: 168px;
+  object-fit: cover;
+  display: block;
+  transition: transform .35s var(--ease);
+}
+.evt-list-card--cover:hover .evt-list-card__cover img {
+  transform: scale(1.03);
+}
+
+.evt-list-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s5);
+  min-width: 0;
+}
+.evt-list-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.evt-list-card__when {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--r-md);
+  background: rgba(93, 2, 130, .12);
+  border: 1px solid rgba(93, 2, 130, .28);
+  font-family: var(--font-body);
+}
+.evt-list-card__when-day {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+}
+.evt-list-card__when-meta {
+  font-size: .72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--purple-light);
+}
+.evt-list-card__pill {
+  font-size: .62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 3px 8px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  color: var(--blue-light);
+  background: rgba(255, 255, 255, .04);
+}
+.evt-list-card__pill--today { color: var(--accent); border-color: rgba(196, 94, 255, .35); background: rgba(196, 94, 255, .1); }
+.evt-list-card__pill--type  { color: var(--purple-light); border-color: rgba(93, 2, 130, .4); background: rgba(93, 2, 130, .15); }
+.evt-list-card__pill--full  { color: #ff9a9a; border-color: rgba(229, 37, 33, .4); background: rgba(229, 37, 33, .12); }
+.evt-list-card__pill--low   { color: #ffd17a; border-color: rgba(245, 158, 11, .4); background: rgba(245, 158, 11, .12); }
+.evt-list-card__pill--open  { color: #7ce0b0; border-color: rgba(62, 207, 142, .4); background: rgba(62, 207, 142, .12); }
+
+.evt-list-card__title {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 1.12rem;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.evt-list-card__title a {
+  color: #fff;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  flex-wrap: wrap;
+}
+.evt-list-card__title a:hover {
+  color: var(--purple-light);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.evt-list-card__ico {
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 1.2rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.evt-list-card__orga {
+  margin: 0;
+  font-size: .8rem;
+  color: var(--text-muted);
+}
+.evt-list-card__orga strong { color: var(--blue-light); font-weight: 600; }
+.evt-list-card__excerpt {
+  margin: 0;
+  font-size: .84rem;
+  line-height: 1.55;
+  color: var(--blue-light);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.evt-list-card__facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.evt-list-card__facts li {
+  font-size: .72rem;
+  color: var(--blue-light);
+  padding: .2rem .55rem;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, .04);
+  border: 1px solid var(--border);
+}
+.evt-list-card__facts li.is-full { color: #ff9a9a; border-color: rgba(229, 37, 33, .35); }
+.evt-list-card__facts li.is-low  { color: #ffd17a; border-color: rgba(245, 158, 11, .35); }
+.evt-list-card__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-top: auto;
+  padding-top: var(--s2);
+}
+.evt-list-card__more {
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--purple-light);
+  text-decoration: none;
+}
+.evt-list-card__more:hover { text-decoration: underline; }
+
+@media (max-width: 720px) {
+  .evt-list-card--cover {
+    grid-template-columns: 1fr;
+  }
+  .evt-list-card__cover {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    max-height: 180px;
+  }
+  .evt-list-card__cover img {
+    min-height: 180px;
+    max-height: 180px;
+  }
+  .evt-list-card__body { padding: var(--s4); }
+  .evt-list-card__title { font-size: 1.02rem; }
+}
+
+/* Emojis événements (police système color emoji) */
+.evt-emoji,
+.evt-emoji-input,
+.evt-detail-icon .evt-emoji {
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif;
+  font-style: normal;
+  line-height: 1;
+}
+.evt-emoji--sm { font-size: 1.15rem; }
+.evt-detail-icon .evt-emoji { font-size: 2.2rem; }
 
 .evt-card {
   display: grid;
-  grid-template-columns: 90px 1fr;
-  gap: var(--s5);
+  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-areas: "date body";
+  gap: var(--s4) var(--s5);
+  align-items: start;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   padding: var(--s5);
   transition: border-color var(--ease), transform var(--ease), box-shadow var(--ease);
 }
+.evt-card--has-media {
+  grid-template-columns: 108px 76px minmax(0, 1fr);
+  grid-template-areas: "media date body";
+}
+.evt-card__thumb {
+  grid-area: media;
+  display: block;
+  align-self: stretch;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  min-height: 108px;
+}
+.evt-card__thumb img {
+  width: 100%;
+  height: 100%;
+  min-height: 108px;
+  object-fit: cover;
+  display: block;
+  transition: transform var(--ease);
+}
+.evt-card--has-media:hover .evt-card__thumb img {
+  transform: scale(1.04);
+}
+.evt-card__date { grid-area: date; }
+.evt-card__body { grid-area: body; }
 .evt-card:hover {
   border-color: var(--purple-mid);
   transform: translateY(-2px);
@@ -3884,8 +4306,22 @@ a.link:hover { color: #fff; }
 .evt-card--past:hover { transform: none; opacity: .7; }
 .evt-card.is-hidden { display: none !important; }
 
-@media (max-width: 540px) {
-  .evt-card { grid-template-columns: 64px 1fr; gap: var(--s4); padding: var(--s4); }
+@media (max-width: 640px) {
+  .evt-card {
+    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-areas: "date body";
+    gap: var(--s3) var(--s4);
+    padding: var(--s4);
+  }
+  .evt-card--has-media {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "media"
+      "date"
+      "body";
+  }
+  .evt-card__thumb { min-height: 140px; }
+  .evt-card__thumb img { min-height: 140px; }
 }
 
 .evt-card__date {
@@ -3917,7 +4353,12 @@ a.link:hover { color: #fff; }
   border-radius: var(--r-pill);
 }
 
-.evt-card__body { display: flex; flex-direction: column; gap: var(--s2); min-width: 0; }
+.evt-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-width: 0;
+}
 .evt-card__head { display: flex; align-items: flex-start; justify-content: space-between; }
 .evt-card__badges { display: flex; flex-wrap: wrap; gap: 4px; }
 
@@ -4084,7 +4525,11 @@ a.link:hover { color: #fff; }
   white-space: nowrap; overflow: hidden;
   transition: opacity var(--ease);
 }
-.evt-cal-pill:hover     { opacity: .8; }
+.evt-cal-pill:hover     { opacity: .85; text-decoration: none; }
+.evt-cal-pill__ico {
+  flex-shrink: 0;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+}
 .evt-cal-pill__txt      { overflow: hidden; text-overflow: ellipsis; }
 .evt-cal-more           { font-size: .65rem; color: var(--blue-light); padding: 1px 4px; }
 
@@ -4118,7 +4563,13 @@ a.link:hover { color: #fff; }
   font-size: .62rem;
 }
 
+/* ════════════════════════════════════════════════════════════
+   PAGE ÉVÉNEMENTS - RESPONSIVE MOBILE (≤900 / ≤700 / ≤540 / ≤420)
+   Refactor pour rendre la liste, la barre de filtres et le hero
+   utilisables sur mobile.
+   ════════════════════════════════════════════════════════════ */
 
+/* ── ≤ 900px : la barre de filtres se simplifie ──────────────── */
 @media (max-width: 900px) {
   .evt-hero-grid { gap: var(--s5); }
   .evt-hero-stats { gap: var(--s2); }
@@ -4142,7 +4593,7 @@ a.link:hover { color: #fff; }
   }
 }
 
-
+/* ── ≤ 700px : chips et presets scrollables horizontalement ──── */
 @media (max-width: 700px) {
   /* Hero stats deviennent plus compactes */
   .evt-hero-stats { gap: 6px; }
@@ -4211,7 +4662,7 @@ a.link:hover { color: #fff; }
   .evt-select, .evt-reset-btn { flex: 1; min-height: 36px; }
 }
 
-
+/* ── ≤ 540px : cartes empilées (date au-dessus) ──────────────── */
 @media (max-width: 540px) {
   /* Le hero passe à 2x2 (3 stats) pour rester lisible */
   .evt-hero-stats { flex-wrap: wrap; }
@@ -4225,11 +4676,14 @@ a.link:hover { color: #fff; }
   /* Titre de mois */
   .evt-month-title { font-size: .75rem; gap: var(--s2); margin-bottom: var(--s3); }
 
-  /* Carte évent : date en bandeau horizontal en haut, contenu en dessous */
+  .evt-list-card__body { padding: var(--s4); }
+  .evt-list-card__when-day { font-size: 1.2rem; }
+
+  /* Cartes passées (ancien format compact) */
   .evt-card {
-    display: flex;            /* on quitte la grid 90px+1fr qui écrasait sur petits écrans */
-    flex-direction: column;
-    gap: var(--s3);
+    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-areas: "date body";
+    gap: var(--s3) var(--s4);
     padding: var(--s4);
   }
   .evt-card__date {
@@ -4282,7 +4736,7 @@ a.link:hover { color: #fff; }
   .evt-cal-month-pill { flex-shrink: 0; scroll-snap-align: start; }
 }
 
-
+/* ── ≤ 420px : ultra-compact ────────────────────────────────── */
 @media (max-width: 420px) {
   .evt-hero-stats { gap: 4px; }
   .evt-stat { padding: 6px 8px; }
@@ -4299,6 +4753,9 @@ a.link:hover { color: #fff; }
   .evt-cal-cell { min-height: 44px; }
 }
 
+/* ============================================================
+   PAGE À PROPOS / LA CORPO - refonte
+   ============================================================ */
 
 /* Hero */
 .apropos-hero { padding-bottom: var(--s12); }
@@ -4668,6 +5125,9 @@ a.link:hover { color: #fff; }
 .apropos-hero + .section .faq-list,
 #faq .faq-list { margin-top: var(--s6); }
 
+/* ============================================================
+   PAGE ASSOCIATIONS - barre de recherche & filtres
+   ============================================================ */
 
 /* Cartes masquées par le filtre : surcharge le `display:block`
    défini globalement sur .asso-card-link qui empêchait [hidden] d'agir. */
@@ -4790,7 +5250,9 @@ a.link:hover { color: #fff; }
 }
 .filter-reset-btn:hover { color: #fff; border-color: var(--purple); }
 
-
+/* ============================================================
+   CONNEXION admin/login.php - TP sécurité & langue
+   ============================================================ */
 .login-page-body { margin: 0; }
 .login-wrap {
   min-height: 100vh;
@@ -4958,7 +5420,9 @@ a.link:hover { color: #fff; }
   gap: .4rem;
 }
 
-
+/* ============================================================
+   PAGES LEGALES
+   ============================================================ */
 .legal-hero { padding-bottom: var(--s8); }
 .legal-eyebrow {
   display: inline-block;
@@ -4999,7 +5463,7 @@ a.link:hover { color: #fff; }
   .legal-layout { grid-template-columns: 1fr; gap: var(--s8); }
 }
 
-
+/* ── Sommaire latéral ─────────────────────────────────────── */
 .legal-toc {
   position: sticky;
   top: var(--s8);
@@ -5091,7 +5555,7 @@ a.link:hover { color: #fff; }
   border-top: 1px solid var(--border);
 }
 
-
+/* ── Contenu en prose ─────────────────────────────────────── */
 .legal-prose {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -5170,11 +5634,13 @@ a.link:hover { color: #fff; }
 .legal-contact-block h2 { margin: 0 0 var(--s2); font-size: 1.05rem; color: #fff; }
 .legal-contact-block p { margin: 0; color: #d8d4e8; }
 
-
+/* ============================================================
+   COOKIE CONSENT - RGPD / CNIL
+   ============================================================ */
 .cc-root[hidden] { display: none; }
 .cc-no-scroll { overflow: hidden; }
 
-
+/* ─ Bannière flottante (coin bas) ──────────────────────────── */
 .cc-banner {
   position: fixed;
   left: clamp(12px, 2vw, 28px);
@@ -5300,7 +5766,7 @@ a.link:hover { color: #fff; }
   .cc-modal__actions .cc-btn { width: 100%; min-height: 46px; padding: .85rem 1rem; }
 }
 
-
+/* ─ Boutons (style propre à la modale, pour ne dépendre de rien) ─ */
 .cc-btn {
   appearance: none;
   border: 1px solid transparent;
@@ -5326,7 +5792,7 @@ a.link:hover { color: #fff; }
 }
 .cc-btn--ghost:hover { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.25); color: #fff; }
 
-
+/* ─ Overlay + modale ───────────────────────────────────────── */
 .cc-overlay {
   position: fixed; inset: 0;
   background: rgba(8,2,18,.65);
@@ -5434,7 +5900,7 @@ a.link:hover { color: #fff; }
   color: #b9b3cf;
 }
 
-
+/* ─ Toggle switch ──────────────────────────────────────────── */
 .cc-toggle {
   position: relative;
   display: inline-flex;
@@ -5500,7 +5966,7 @@ a.link:hover { color: #fff; }
   background: #fff;
 }
 
-
+/* ─ Footer modale ──────────────────────────────────────────── */
 .cc-modal__footer {
   padding: var(--s4) clamp(var(--s5), 2.4vw, var(--s7));
   border-top: 1px solid var(--border);
@@ -5531,7 +5997,7 @@ a.link:hover { color: #fff; }
   .cc-modal__actions .cc-btn { flex: 1 1 auto; }
 }
 
-
+/* ─ Bouton "footer link as button" ─────────────────────────── */
 .footer__link-btn {
   background: none;
   border: none;
@@ -5545,7 +6011,10 @@ a.link:hover { color: #fff; }
 }
 .footer__link-btn:hover { color: #fff; }
 
-
+/* ============================================================
+   ADMIN - CALENDRIER SCOLAIRE INTERACTIF
+   Préfixe `adcal-` pour éviter tout conflit avec le mini-calendrier
+   ============================================================ */
 .adcal-card { padding: var(--s5) var(--s6); }
 
 .adcal-toolbar {
@@ -5733,7 +6202,9 @@ a.link:hover { color: #fff; }
   .adcal-weekdays > div { font-size: .6rem; }
 }
 
-
+/* ============================================================
+   ADMIN - ÉVÉNEMENTS (vue interactive)
+   ============================================================ */
 .adcal-cell.is-selected {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent) inset;
@@ -5832,7 +6303,9 @@ a.link:hover { color: #fff; }
   .evt-cal-help { display: inline; }
 }
 
-
+/* ============================================================
+   PAGE PUBLIQUE - ÉVÉNEMENT DÉTAIL
+   ============================================================ */
 .evt-detail {
   /* Le header (.nav) est fixed et fait 66px de haut.
      On force un padding-top supérieur pour éviter que le contenu (et le bouton
@@ -5865,6 +6338,105 @@ a.link:hover { color: #fff; }
   .evt-detail-grid { grid-template-columns: 1fr; }
 }
 
+/* Hero bannière intégré au-dessus de la grille */
+.evt-detail-cover {
+  position: relative;
+  margin: 0 0 var(--s6);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  min-height: 220px;
+  max-height: min(42vh, 360px);
+  display: flex;
+  align-items: flex-end;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .28);
+}
+.evt-detail-cover__media {
+  position: absolute;
+  inset: 0;
+}
+.evt-detail-cover__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.evt-detail-cover__shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(10, 0, 26, .15) 0%,
+    rgba(10, 0, 26, .45) 45%,
+    rgba(10, 0, 26, .92) 100%
+  );
+  pointer-events: none;
+}
+.evt-detail-cover__content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding: var(--s6) var(--s7) var(--s5);
+}
+.evt-detail-cover__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-bottom: var(--s3);
+}
+.evt-detail-cover__type {
+  background: rgba(139, 47, 201, .35);
+  color: #e9d5ff;
+  border: 1px solid rgba(196, 94, 255, .45);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.evt-detail-cover__title {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: clamp(1.5rem, 4vw, 2.15rem);
+  font-weight: 800;
+  line-height: 1.12;
+  color: #fff;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, .45);
+}
+.evt-detail-cover__orga {
+  margin: var(--s2) 0 0;
+  font-size: .92rem;
+  color: rgba(255, 255, 255, .82);
+}
+.evt-detail-cover__orga strong { color: #fff; font-weight: 600; }
+.evt-emoji--lg { font-size: 2rem; }
+.evt-waitlist-hint {
+  display: block;
+  margin-top: var(--s2);
+  font-size: .82rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.ticket--waitlist {
+  border: 1px dashed rgba(255, 149, 0, .45);
+  background: rgba(255, 149, 0, .06);
+  border-radius: var(--r-lg);
+  padding: var(--s4);
+  margin-bottom: var(--s3);
+}
+@media (max-width: 768px) {
+  .evt-detail-cover {
+    min-height: 180px;
+    max-height: none;
+    border-radius: var(--r-lg);
+  }
+  .evt-detail-cover__content {
+    padding: var(--s5) var(--s4) var(--s4);
+  }
+  .evt-detail-cover__title { font-size: 1.35rem; }
+}
 .evt-detail-main {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -5875,87 +6447,7 @@ a.link:hover { color: #fff; }
   display: flex; gap: var(--s3); align-items: center;
   margin-bottom: var(--s3);
 }
-.evt-detail-icon,
-.evt-icon {
-  font-size: 2.2rem;
-  line-height: 1;
-  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
-}
-.evt-icon { display: inline-block; vertical-align: middle; }
-
-.evt-detail-banniere {
-  margin: 0 0 var(--s5);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  border: 1px solid var(--border);
-  aspect-ratio: 21 / 9;
-  max-height: 320px;
-  background: var(--surface);
-}
-.evt-detail-banniere img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-@media (max-width: 600px) {
-  .evt-detail-banniere { aspect-ratio: 16 / 10; max-height: 200px; }
-}
-
-/* Admin : icône emoji + bannière */
-.evt-icon-picker { display: flex; flex-direction: column; gap: var(--s2); }
-.evt-icon-preview {
-  font-size: 2rem;
-  line-height: 1;
-  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
-}
-.evt-icon-input { max-width: 12rem; }
-.evt-icon-suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.evt-icon-btn {
-  font-size: 1.35rem;
-  line-height: 1;
-  padding: 4px 6px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  cursor: pointer;
-  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
-}
-.evt-icon-btn:hover { border-color: var(--purple-mid); background: rgba(139, 47, 201, .12); }
-.evt-banniere-preview {
-  margin-bottom: var(--s2);
-  border-radius: var(--r-md);
-  overflow: hidden;
-  border: 1px solid var(--border);
-  max-width: 360px;
-}
-.evt-banniere-preview img { width: 100%; height: auto; display: block; max-height: 140px; object-fit: cover; }
-.evt-banniere-remove { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: .8rem; cursor: pointer; }
-
-.evt-card--has-thumb {
-  grid-template-columns: 90px 96px 1fr;
-}
-@media (max-width: 540px) {
-  .evt-card--has-thumb { grid-template-columns: 64px 1fr; }
-}
-.evt-card__thumb {
-  border-radius: var(--r-md);
-  overflow: hidden;
-  align-self: stretch;
-  min-height: 72px;
-  background: var(--surface);
-}
-.evt-card__thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  min-height: 72px;
-}
+.evt-detail-icon { font-size: 2.2rem; line-height: 1; }
 .evt-detail-type {
   background: rgba(139,47,201,.15);
   color: var(--purple-light, #c89bff);
@@ -6004,7 +6496,7 @@ a.link:hover { color: #fff; }
   color: var(--text);
 }
 
-
+/* ── Carte interactive (Leaflet) ─────────────────────────── */
 .evt-map {
   position: relative;
   width: 100%;
@@ -6201,7 +6693,9 @@ a.link:hover { color: #fff; }
 }
 .evt-card__title-link:hover { background-size: 100% 1px; }
 
-
+/* ============================================================
+   ADMIN - ÉVÉNEMENT (gestion complète + scanner)
+   ============================================================ */
 .adm-evt-header { margin-bottom: var(--s5); }
 .adm-evt-back {
   display: inline-flex; align-items: center; gap: 6px;
@@ -6234,7 +6728,7 @@ a.link:hover { color: #fff; }
   margin-bottom: var(--s4);
 }
 
-
+/* ── Toolbar de la liste des participants ───────────── */
 .adm-part-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -6308,7 +6802,9 @@ a.link:hover { color: #fff; }
 .adm-evt-panel { display: none; }
 .adm-evt-panel.is-active { display: block; }
 
-
+/* ════════════════════════════════════════════════════════════
+   Scanner - panneau « Contrôle d'entrée » (design)
+   ════════════════════════════════════════════════════════════ */
 .scan-panel.scan-panel {
   padding: 0 0 calc(env(safe-area-inset-bottom, 0px) + 12px);
   max-width: 560px;
@@ -6791,7 +7287,9 @@ body.scan-fs-lock { overflow: hidden; }
 }
 .scanner-manual h3 { font-size: .85rem; margin-bottom: var(--s2); }
 
-
+/* ════════════════════════════════════════════════════════════
+   Scanner mobile (≤ 720px) - layout vertical lisible, boutons gros
+   ════════════════════════════════════════════════════════════ */
 @media (max-width: 720px) {
   .scanner-wrap { gap: var(--s3); margin-top: var(--s2); }
 
@@ -6897,7 +7395,9 @@ body.scan-fs-lock { overflow: hidden; }
   min-width: 60px;
 }
 
-
+/* ════════════════════════════════════════════════════════════
+   Scanner : overlay plein écran sur la caméra
+   ════════════════════════════════════════════════════════════ */
 .scanner-video-wrap {
   position: relative;
   overflow: hidden;
@@ -6978,7 +7478,9 @@ body.scan-fs-lock { overflow: hidden; }
   .scan-overlay { padding: var(--s3); gap: 6px; }
 }
 
-
+/* ════════════════════════════════════════════════════════════
+   Admin - barre de progression des scans
+   ════════════════════════════════════════════════════════════ */
 .adm-scan-progress {
   padding: var(--s4);
   margin-bottom: var(--s3);
@@ -7042,7 +7544,9 @@ body.scan-fs-lock { overflow: hidden; }
   border-left: 3px solid rgba(245, 158, 11, .5);
 }
 
-
+/* ════════════════════════════════════════════════════════════
+   Billet (page publique) - QR cliquable, actions, modale zoom
+   ════════════════════════════════════════════════════════════ */
 .ticket__qr-btn {
   display: block;
   background: #fff;
@@ -7172,12 +7676,26 @@ body.scan-fs-lock { overflow: hidden; }
   font-style: italic;
 }
 
-
+/* ════════════════════════════════════════════════════════════
+   Blocs print du billet - cachés en mode écran, visibles en print
+   ════════════════════════════════════════════════════════════ */
 .ticket__print-header,
 .ticket__print-info,
 .ticket__print-footer { display: none; }
 
-
+/* ════════════════════════════════════════════════════════════
+   Impression du billet (Imprimer ou Enregistrer en PDF)
+   Design : carte verticale avec en-tête couleur, QR central, bloc
+   d'infos en pavé, footer avec consignes.
+   ════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════
+   Impression billet : l'impression réelle se fait dans une iframe
+   cachée (cf. printTicket() dans evenement.php), qui injecte ses
+   propres styles. Les règles ci-dessous ne s'activent QUE si
+   quelqu'un utilise "Imprimer" du navigateur sur la page entière
+   (cas marginal) - on masque alors tout sauf le billet en cours,
+   pour rester cohérent avec ce qui apparaît à l'écran.
+   ════════════════════════════════════════════════════════════ */
 @media print {
   /* On veut les couleurs d'accent même en impression */
   .ticket.is-printing {
@@ -7186,7 +7704,7 @@ body.scan-fs-lock { overflow: hidden; }
     print-color-adjust: exact !important;
   }
 
-  
+  /* ─── Conteneur ticket : carte unique tenant sur 1 page A4 ─── */
   .ticket.is-printing {
     position: static !important;
     width: 100% !important;
@@ -7216,7 +7734,7 @@ body.scan-fs-lock { overflow: hidden; }
     break-inside: avoid !important;
   }
 
-  
+  /* ─── Header coloré ─── */
   .ticket.is-printing .ticket__print-header {
     display: flex !important;
     align-items: center;
@@ -7256,7 +7774,7 @@ body.scan-fs-lock { overflow: hidden; }
     font-weight: 600 !important;
   }
 
-  
+  /* ─── Zone QR centrale ─── */
   .ticket.is-printing .ticket__left {
     display: flex !important;
     flex-direction: column !important;
@@ -7295,7 +7813,7 @@ body.scan-fs-lock { overflow: hidden; }
     display: none !important;
   }
 
-  
+  /* ─── Bloc infos détaillées ─── */
   .ticket.is-printing .ticket__print-info {
     display: grid !important;
     grid-template-columns: 1fr 1fr;
@@ -7326,7 +7844,7 @@ body.scan-fs-lock { overflow: hidden; }
     line-height: 1.4 !important;
   }
 
-  
+  /* ─── Footer ─── */
   .ticket.is-printing .ticket__print-footer {
     display: block !important;
     padding: 20px 40px 28px !important;
@@ -7351,7 +7869,9 @@ body.scan-fs-lock { overflow: hidden; }
   @page { margin: 0; size: A4 portrait; }
 }
 
-
+/* ════════════════════════════════════════════════════════════
+   Bandeau "Ajouter à mon agenda" en haut de la page évent
+   ════════════════════════════════════════════════════════════ */
 .evt-addcal-banner {
   display: flex;
   align-items: center;
@@ -7403,7 +7923,9 @@ body.scan-fs-lock { overflow: hidden; }
   min-width: 92px;
 }
 
-
+/* ════════════════════════════════════════════════════════════
+   Boutons "Ajouter à mon agenda" (page publique évent)
+   ════════════════════════════════════════════════════════════ */
 .evt-addcal__btns {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -7433,7 +7955,9 @@ body.scan-fs-lock { overflow: hidden; }
   transform: translateY(-1px);
 }
 
-
+/* ════════════════════════════════════════════════════════════
+   Boutons Wallet sur les billets (Apple + Google)
+   ════════════════════════════════════════════════════════════ */
 .ticket__action-btn--apple {
   background: #000;
   color: #fff;
@@ -7485,7 +8009,11 @@ body.scan-fs-lock { overflow: hidden; }
   opacity: .7;
 }
 
+/* ════════════════════════════════════════════════════════════
+   RESPONSIVE AUDIT - composants admin & publics
+   ════════════════════════════════════════════════════════════ */
 
+/* ─── Tablette / petit desktop ── 1024px ─── */
 @media (max-width: 1024px) {
   .evt-detail-grid {
     grid-template-columns: 1fr;
@@ -7496,7 +8024,7 @@ body.scan-fs-lock { overflow: hidden; }
   }
 }
 
-
+/* ─── Tablette ── 900px ─── */
 @media (max-width: 900px) {
   .adm-evt-tabs {
     overflow-x: auto;
@@ -7518,7 +8046,7 @@ body.scan-fs-lock { overflow: hidden; }
   .adm-scan-progress__pct { font-size: 1.4rem; }
 }
 
-
+/* ─── Mobile ── 640px ─── */
 @media (max-width: 640px) {
   .container { padding-left: var(--s4); padding-right: var(--s4); }
 
@@ -7586,7 +8114,7 @@ body.scan-fs-lock { overflow: hidden; }
   .btn--lg { padding: .8rem 1.4rem; font-size: .95rem; }
 }
 
-
+/* ─── Très petit mobile ── 420px ─── */
 @media (max-width: 420px) {
   .evt-addcal__btns { grid-template-columns: 1fr; }
   .adm-evt-stats { grid-template-columns: 1fr; }
@@ -7597,7 +8125,7 @@ body.scan-fs-lock { overflow: hidden; }
   .scan-overlay__title { font-size: 1.4rem; }
 }
 
-
+/* ─── Bandeau "Ajouter à mon agenda" - responsive ─── */
 @media (max-width: 720px) {
   .evt-addcal-banner {
     flex-direction: column;
@@ -7627,7 +8155,7 @@ body.scan-fs-lock { overflow: hidden; }
   .evt-addcal-banner__sub { font-size: .75rem; }
 }
 
-
+/* ─── Boutons Wallet sur petit écran ─── */
 @media (max-width: 540px) {
   .ticket__actions {
     flex-direction: column;
@@ -7641,6 +8169,9 @@ body.scan-fs-lock { overflow: hidden; }
 }
 
 
+/* ════════════════════════════════════════════════════════════
+   Inscription & Billetterie - admin form
+   ════════════════════════════════════════════════════════════ */
 .evt-insc-section {
   border: 1px solid var(--border);
   border-radius: var(--r-md);

@@ -15,6 +15,7 @@ if (!boutique_db_ready($pdo)) {
     exit;
 }
 
+/* Même périmètre assos que admin/boutique.php */
 if (isAdminCorpo()) {
     $assos = $pdo->query("SELECT id, nom, type, ecole FROM associations ORDER BY ecole, nom")->fetchAll(PDO::FETCH_ASSOC);
 } else {
@@ -113,7 +114,7 @@ $orders = (!$detail || $detailId === 0)
   $st0 = (string)($c['statut'] ?? 'init');
   ?>
   <div class="admin-card">
-    <h2>Commande
+    <h2>Commande #<?= (int)$c['id'] ?></h2>
     <p style="font-size:.85rem;color:var(--text-muted);margin-bottom:var(--s4)">
       <?= htmlspecialchars(boutique_cmd_statut_admin($st0)) ?>
       · <?= htmlspecialchars((string)($c['created_at'] ?? '')) ?>
@@ -166,7 +167,7 @@ $orders = (!$detail || $detailId === 0)
       <strong><?= htmlspecialchars((string)($c['prenom'] ?? '')) ?> <?= htmlspecialchars((string)($c['nom'] ?? '')) ?></strong><br>
       <span style="font-size:.88rem;color:var(--text-muted)"><?= htmlspecialchars((string)($c['email'] ?? '')) ?></span>
       <?php if (!empty($c['user_id'])): ?>
-        <span style="font-size:.82rem;color:var(--text-muted)"> · user
+        <span style="font-size:.82rem;color:var(--text-muted)"> · user #<?= (int)$c['user_id'] ?></span>
       <?php endif; ?>
     </p>
     <div style="overflow-x:auto">
@@ -183,8 +184,8 @@ $orders = (!$detail || $detailId === 0)
         <tbody>
         <?php foreach ($lns as $ln): ?>
           <tr>
-            <td><?= htmlspecialchars((string)($ln['titre_snapshot'] ?? '')) ?> <span style="opacity:.6">(
-            <td><?= htmlspecialchars((string)($ln['structure_type'] ?? '')) ?>
+            <td><?= htmlspecialchars((string)($ln['titre_snapshot'] ?? '')) ?> <span style="opacity:.6">(#<?= (int)($ln['produit_id'] ?? 0) ?>)</span></td>
+            <td><?= htmlspecialchars((string)($ln['structure_type'] ?? '')) ?> #<?= (int)($ln['structure_id'] ?? 0) ?></td>
             <td><?= number_format((float)($ln['prix_unitaire'] ?? 0), 2, ',', ' ') ?> €</td>
             <td><?= (int)($ln['quantite'] ?? 0) ?></td>
             <td><?= number_format((float)($ln['prix_unitaire'] ?? 0) * (int)($ln['quantite'] ?? 0), 2, ',', ' ') ?> €</td>

@@ -1,12 +1,25 @@
 <?php
+/*
+ * includes/header.php - En-tête commun + navigation
+ *
+ * Variables attendues (définir AVANT require_once) :
+ *   $title  string  Titre de la page
+ *   $pageStyles  string[]  Optionnel : feuilles supplémentaires après style.css (ex. ['css/guide-page.css']).
+ *                   'sport' | 'partenaires' | 'boutique' | 'todo' | 'demande-partenariat' |
+ *                   'register' | 'mon-profil' | 'mes-commandes' | …
+ */
 
 if (session_status() === PHP_SESSION_NONE) session_start();
 
+// Charge auth.php si pas encore fait (pages publiques ne l'incluent pas toujours)
 if (!function_exists('isLoggedIn')) {
     require_once __DIR__ . '/auth.php';
 }
 require_once __DIR__ . '/i18n.php';
 
+// Rafraîchit les permissions de l'utilisateur connecté à chaque page si $pdo
+// est disponible - propage immédiatement les changements de rôles/structures
+// sans nécessiter une déconnexion / reconnexion.
 if (isset($pdo) && $pdo instanceof PDO && function_exists('refreshUserSession')) {
     refreshUserSession($pdo);
 }
@@ -38,7 +51,8 @@ function navLnk(string $href, string $label, string $current, string $key): stri
   <meta name="mobile-web-app-capable" content="yes">
   <title><?= htmlspecialchars($title ?? corpo_t('index.meta_title')) ?> - <?= htmlspecialchars(corpo_t('meta.site_suffix')) ?></title>
   <?php
-
+    // Cache-busting basé sur la date de modification : invalide le cache navigateur
+    // dès qu'on touche au CSS (utile en dev quand on itère).
     $cssPath = __DIR__ . '/../css/style.css';
     $cssVer  = file_exists($cssPath) ? filemtime($cssPath) : '1';
   ?>
@@ -64,7 +78,8 @@ function navLnk(string $href, string $label, string $current, string $key): stri
   <nav class="nav" aria-label="<?= htmlspecialchars(corpo_t('nav.main_aria')) ?>">
     <div class="nav__inner container">
 
-            <a href="<?= $base ?>index.php" class="nav__brand" aria-label="<?= htmlspecialchars(corpo_t('nav.brand_home')) ?>">
+      <!-- Logo -->
+      <a href="<?= $base ?>index.php" class="nav__brand" aria-label="<?= htmlspecialchars(corpo_t('nav.brand_home')) ?>">
         <img src="<?= $base ?>images/logo-corpo-omnes.png" alt="" class="nav__logo" aria-hidden="true">
         <div>
           <span class="nav__brand-name">Corpo Omnes</span>
@@ -72,11 +87,13 @@ function navLnk(string $href, string $label, string $current, string $key): stri
         </div>
       </a>
 
-            <button class="nav__toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-menu" aria-label="<?= htmlspecialchars(corpo_t('nav.open_menu')) ?>">
+      <!-- Burger mobile -->
+      <button class="nav__toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-menu" aria-label="<?= htmlspecialchars(corpo_t('nav.open_menu')) ?>">
         <span></span><span></span><span></span>
       </button>
 
-            <ul class="nav__menu" id="nav-menu" role="list">
+      <!-- Liens de navigation -->
+      <ul class="nav__menu" id="nav-menu" role="list">
 
         <?= navLnk($base . 'index.php',        corpo_t('nav.home'),       $p, 'index') ?>
         <li class="nav__item--dropdown<?= $corpoDropdown ? ' nav__item--dropdown--active' : '' ?>">
@@ -140,7 +157,8 @@ function navLnk(string $href, string $label, string $current, string $key): stri
         </li>
         <?= navLnk($base . 'sport.php',        corpo_t('nav.sport'),      $p, 'sport') ?>
 
-                <li class="nav__item--dropdown<?= $partenairesDropdown ? ' nav__item--dropdown--active' : '' ?>">
+        <!-- Partenaires avec sous-item "Devenir partenaire" -->
+        <li class="nav__item--dropdown<?= $partenairesDropdown ? ' nav__item--dropdown--active' : '' ?>">
           <button class="nav__link nav__dropdown-toggle<?= $p === 'partenaires' ? ' active' : '' ?>"
                   aria-expanded="false" aria-haspopup="true">
             <?= htmlspecialchars(corpo_t('nav.partners')) ?> <span class="nav__arrow" aria-hidden="true">▾</span>
@@ -165,12 +183,13 @@ function navLnk(string $href, string $label, string $current, string $key): stri
           </button>
         </li>
 
-                <?php
-
+        <!-- Dropdown Compte -->
+        <?php
+          // Utilise les fonctions auth.php (chargées ci-dessus)
           $isConnected  = isLoggedIn();
-
+          // Accès panel : admin_corpo+ OU admin d'au moins une structure OU resp. fonctionnelle (resp_*)
           $isAdminPanel = hasAdminPanelAccess();
-
+          // Libellé du menu Compte : prénom > identifiant (jamais l’email)
           $displayName = htmlspecialchars(
               ($_SESSION['user_prenom'] ?? '') ?:
               ($_SESSION['user_login']     ?? '') ?:

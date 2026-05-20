@@ -1,5 +1,5 @@
 <?php
-
+// gestion des actus - bureau voit seulement sa structure, admin voit tout
 require_once '../includes/db.php';
 $adminTitle = 'Actualités';
 $adminPage  = 'actualites';
@@ -26,6 +26,7 @@ function corpo_actu_has_visibilite(PDO $pdo): bool {
     return $cache;
 }
 
+// vérifie si l'user peut gérer cette actu
 function actu_user_can_manage(PDO $pdo, array $a): bool {
     if (isAdminCorpo()) {
         return true;
@@ -44,6 +45,7 @@ function actu_user_can_manage(PDO $pdo, array $a): bool {
     return false;
 }
 
+// Périmètre : assos / sports gérés + délégation « communication »
 $periAssoIds  = isAdminCorpo() ? null : getManagedAssoIds($pdo);
 $periSportIds = isAdminCorpo() ? null : getManagedSportIds($pdo);
 if (!isAdminCorpo()) {
@@ -60,6 +62,7 @@ if (!isAdminCorpo()) {
     }
 }
 
+// actions POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
@@ -203,6 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// ── Lecture ────────────────────────────────────────────────
 if (isAdminCorpo()) {
     $actus = $pdo->query("SELECT a.*, u.username AS auteur FROM actualites a JOIN users u ON u.id=a.auteur_id ORDER BY a.created_at DESC")->fetchAll();
 } else {
@@ -219,7 +223,7 @@ if (isAdminCorpo()) {
         $rows = $pdo->query("SELECT a.*, u.username AS auteur FROM actualites a JOIN users u ON u.id=a.auteur_id WHERE a.structure_type='sport' AND a.structure_id IN ($ph) ORDER BY a.created_at DESC")->fetchAll();
         $actus = array_merge($actus, $rows);
     }
-
+    // Toujours ajouter les propres actus de l'user (non dupliquées)
     $own = $pdo->prepare("SELECT a.*, u.username AS auteur FROM actualites a JOIN users u ON u.id=a.auteur_id WHERE a.auteur_id=? ORDER BY a.created_at DESC");
     $own->execute([currentUserId()]);
     $existIds = array_column($actus, 'id');
@@ -228,6 +232,8 @@ if (isAdminCorpo()) {
     }
 }
 
+// Structures pour le formulaire
+// Structures gérables uniquement (pareil que events/partenaires)
 if (isAdminCorpo()) {
     $assos  = $pdo->query("SELECT id, nom, type FROM associations ORDER BY type, nom")->fetchAll();
     $sports = $pdo->query("SELECT id, nom FROM sports ORDER BY nom")->fetchAll();
@@ -274,6 +280,7 @@ $hasVisCol = corpo_actu_has_visibilite($pdo);
 
 <?= $flash ?>
 
+<!-- Formulaire création -->
 <div class="admin-card">
   <h2>Publier une actualité</h2>
   <form method="post" class="admin-form">
@@ -365,6 +372,7 @@ $hasVisCol = corpo_actu_has_visibilite($pdo);
   </form>
 </div>
 
+<!-- Liste -->
 <div class="admin-card" style="padding:0;overflow:hidden">
   <?php if (empty($actus)): ?>
     <p style="padding:var(--s8);text-align:center;color:var(--text-muted)">Aucune actualité.</p>
@@ -392,7 +400,7 @@ $hasVisCol = corpo_actu_has_visibilite($pdo);
             <td><strong><?= htmlspecialchars($a['titre']) ?></strong></td>
             <td style="font-size:.78rem">
               <?= htmlspecialchars($a['structure_type']) ?>
-              <?php if ($a['structure_id']): ?>
+              <?php if ($a['structure_id']): ?> #<?= $a['structure_id'] ?><?php endif; ?>
             </td>
             <td style="font-size:.78rem"><?= htmlspecialchars($a['auteur']) ?></td>
             <td>

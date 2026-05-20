@@ -1,13 +1,23 @@
 <?php
-
+/**
+ * API publique - Événements pour les écrans TV campus
+ * Retourne les événements publiés (affichage_tv=1) au format JSON.
+ *
+ * Params :
+ *   ?ecole=ECE  |  ?campus=Citroen|Citadelle|Citroën
+ *   ?mode=spotlight - tri pondéré (hiérarchie + proximité) ; priorité aux événements
+ *       dans les 30 prochains jours ; si aucun résultat dans ce mois, tous les événements à venir.
+ *
+ * Aucune authentification requise (affichage public).
+ */
 declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: public, max-age=60');
 
 require_once __DIR__ . '/../includes/db.php';
-require_once __DIR__ . '/../includes/billetterie.php';
 
+/* Mapping campus physique → écoles (doit correspondre au JS côté TV) */
 const CAMPUS_ECOLES = [
     'Citroen'   => ['ESCE', 'INSEEC Bachelor', 'INSEEC BBA', 'INSEEC BTS', 'INSEEC GE', 'INSEEC MSc'],
     'Citadelle' => ['ECE', 'HEIP', 'Sup de Pub'],
@@ -32,6 +42,7 @@ function tv_fold(string $s): string
     return str_replace(['é', 'è', 'ê', 'ë', 'ù', 'û'], ['e', 'e', 'e', 'e', 'u', 'u'], $s);
 }
 
+/** ECE, ESCE, HEIP, INSEEC (tous programmes), Sup de Pub — insensible à la casse. */
 function tv_normalize_ecole(?string $raw): ?string
 {
     if ($raw === null || trim($raw) === '') {
@@ -110,6 +121,7 @@ function tv_normalize_campus_key(?string $raw): ?string
     return isset(CAMPUS_ECOLES[$s]) ? $s : null;
 }
 
+/** Hiérarchie TV Spotlight : Corpo > Omnes Sport (structure sport) > BDE/BDS/Fédération > asso. */
 function tv_spotlight_tier_norm(string $structureType, ?string $assoType): float {
     $st = strtolower($structureType);
     if ($st === 'corpo') {
@@ -134,6 +146,7 @@ function tv_spotlight_tier_norm(string $structureType, ?string $assoType): float
     return 0.25;
 }
 
+/** Jours jusqu’à l’événement (0 = aujourd’hui), plafonné à 30 pour le score temps. */
 function tv_spotlight_days_until(string $dateYmd, DateTimeImmutable $today): int {
     try {
         $d = new DateTimeImmutable($dateYmd . ' 00:00:00');
@@ -146,6 +159,7 @@ function tv_spotlight_days_until(string $dateYmd, DateTimeImmutable $today): int
     return min(30, (int)$today->diff($d)->days);
 }
 
+/** Pondération : 55 % hiérarchie + 45 % proximité temporelle (événement proche = plus fort). */
 function tv_spotlight_score_row(array $row, DateTimeImmutable $today): float {
     $tier = tv_spotlight_tier_norm((string)($row['structure_type'] ?? 'asso'), $row['asso_type'] ?? null);
     $days  = tv_spotlight_days_until((string)($row['date'] ?? ''), $today);
@@ -156,9 +170,6 @@ function tv_spotlight_score_row(array $row, DateTimeImmutable $today): float {
 $spotlight = isset($_GET['mode']) && strtolower((string)$_GET['mode']) === 'spotlight';
 
 $baseWhere = ["e.statut = 'publie'", "e.affichage_tv = 1"];
-if (corpo_evt_has_visibilite_column($pdo)) {
-    $baseWhere[] = "IFNULL(e.visibilite,'public') = 'public'";
-}
 $params    = [];
 $filterSql = [];
 
@@ -169,7 +180,7 @@ $campusKey     = tv_normalize_campus_key($_GET['campus'] ?? null);
 if ($ecoleCanon !== null) {
     $filterSql[] = tv_ecole_sql_filter($ecoleCanon, $params);
 } elseif ($ecoleRaw !== '') {
-
+    // Paramètre école inconnu → aucun résultat (évite un filtre silencieux incorrect)
     $filterSql[] = '1 = 0';
 } elseif ($campusKey !== null) {
     $ecoles = CAMPUS_ECOLES[$campusKey];

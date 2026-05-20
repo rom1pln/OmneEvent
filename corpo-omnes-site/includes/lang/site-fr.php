@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-
+/** Traductions FR - site public (hors admin) */
 return [
     'nav.home' => 'Accueil',
     'nav.corpo' => 'La Corpo',

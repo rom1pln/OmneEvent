@@ -1,5 +1,6 @@
 <?php
-
+// gestion des membres d'une structure - accessible aux admins de structure
+// db.php doit être chargé AVANT admin-header.php (qui l'utilise dans le sidebar)
 require_once __DIR__ . '/../includes/db.php';
 $adminTitle = 'Membres des structures';
 $adminPage  = 'mes-membres';
@@ -7,8 +8,9 @@ require_once __DIR__ . '/includes/admin-header.php';
 
 $userId = (int)$_SESSION['user_id'];
 
+// on liste les structures que l'user peut gérer
 $mesStructures = [];
-$seen = [];
+$seen = []; // pour éviter les doublons
 
 $addStruct = function(string $type, int $id, string $nom = '', string $slug = '') use (&$mesStructures, &$seen) {
     $key = $type . ':' . $id;
@@ -18,7 +20,7 @@ $addStruct = function(string $type, int $id, string $nom = '', string $slug = ''
 };
 
 if (isAdminCorpo()) {
-
+    // corpo voit tout
     $rows = $pdo->query("SELECT id, nom, slug, type FROM associations ORDER BY type, nom")->fetchAll();
     foreach ($rows as $r) {
         $assoType = strtolower((string)($r['type'] ?? ''));
@@ -28,7 +30,7 @@ if (isAdminCorpo()) {
     $rows = $pdo->query("SELECT 'sport' AS type, id, nom, slug FROM sports ORDER BY nom")->fetchAll();
     foreach ($rows as $r) $addStruct('sport', (int)$r['id'], $r['nom'], $r['slug'] ?? '');
 } else {
-
+    // admin direct de sa structure
     $stmtDirect = $pdo->prepare(
         "SELECT sm.structure_type AS type, sm.structure_id AS id,
                 COALESCE(a.nom, '') AS nom, COALESCE(a.slug, '') AS slug
@@ -43,18 +45,20 @@ if (isAdminCorpo()) {
         $addStruct((string)$r['type'], (int)$r['id'], (string)$r['nom'], (string)($r['slug'] ?? ''));
     }
 
+    // assos rattachées (BDE → ses assos enfants)
     $assoIds = getManagedAssoIds($pdo);
     if (!empty($assoIds)) {
         $pl = implode(',', array_map('intval', $assoIds));
         $rows = $pdo->query("SELECT id, nom, slug, type FROM associations WHERE id IN ($pl) ORDER BY type, nom")->fetchAll();
         foreach ($rows as $r) {
-
+            // tout ce qui n'est pas BDE/BDS reste "asso"
             $assoType = strtolower((string)($r['type'] ?? ''));
             $intType  = ($assoType === 'bde') ? 'bde' : (($assoType === 'bds') ? 'bds' : 'asso');
             $addStruct($intType, (int)$r['id'], (string)$r['nom'], (string)($r['slug'] ?? ''));
         }
     }
 
+    // sports gérés
     $sportIds = getManagedSportIds($pdo);
     if (!empty($sportIds)) {
         $pl = implode(',', array_map('intval', $sportIds));
@@ -65,6 +69,7 @@ if (isAdminCorpo()) {
     }
 }
 
+// tri : BDE → BDS → Asso → Sport, puis alphabétique
 usort($mesStructures, function ($a, $b) {
     $order = ['bde' => 0, 'bds' => 1, 'asso' => 2, 'sport' => 3];
     $ra = $order[$a['type']] ?? 9;
@@ -73,15 +78,17 @@ usort($mesStructures, function ($a, $b) {
     return strcmp((string)$a['nom'], (string)$b['nom']);
 });
 
+// structure choisie dans l'URL
 $selType = $_GET['type'] ?? ($mesStructures[0]['type'] ?? 'asso');
 $selId   = (int)($_GET['id'] ?? ($mesStructures[0]['id'] ?? 0));
 
+// on vérifie que l'user a bien le droit de gérer cette structure
 if ($selType === 'sport') {
     $canManage = isAdminCorpo() || canManageSport($selId, $pdo);
 } else {
     $canManage = isAdminCorpo() || canManageAsso($selId, $pdo);
     if (!$canManage) {
-
+        // Vérifie aussi admin direct BDE/BDS
         foreach ($mesStructures as $ms) {
             if ($ms['type'] === $selType && (int)$ms['id'] === $selId) { $canManage = true; break; }
         }
@@ -97,6 +104,7 @@ if (!$canManage) {
     exit;
 }
 
+// vérifie si la migration des colonnes resp_* a été appliquée
 function mesm_has_resp_cols(PDO $pdo): bool {
     static $cache = null;
     if ($cache !== null) {
@@ -116,10 +124,13 @@ function mesm_has_resp_cols(PDO $pdo): bool {
 }
 $smHasRespCols = mesm_has_resp_cols($pdo);
 
+// traitement des actions POST
 $msg = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = $_POST['action'] ?? '';
 
+    // Valider demande d'adhésion → adherent par défaut (non affiché publiquement).
+    // L'admin pourra promouvoir en « membre » ou « bureau » depuis la liste.
     if ($act === 'valider_adhesion') {
         $demandeId = (int)$_POST['demande_id'];
         $pdo->prepare("UPDATE demandes_adhesion SET statut = 'accepte', traite_par = ? WHERE id = ?")->execute([$userId, $demandeId]);
@@ -134,29 +145,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msg = 'Adhérent accepté.';
     }
 
+    // Refuser demande
     if ($act === 'refuser_adhesion') {
         $demandeId = (int)$_POST['demande_id'];
         $pdo->prepare("UPDATE demandes_adhesion SET statut = 'refuse', traite_par = ? WHERE id = ?")->execute([$userId, $demandeId]);
         $msg = 'Demande refusée.';
     }
 
+    // Changer rôle d'un membre (3 niveaux : adherent / membre / admin)
     if ($act === 'change_role') {
         $membreId = (int)$_POST['membre_id'];
         $newRole  = in_array($_POST['new_role'], ['admin','membre','adherent'], true) ? $_POST['new_role'] : 'adherent';
         $pdo->prepare("UPDATE structure_membres SET role_in_struct = ? WHERE id = ? AND structure_type = ? AND structure_id = ?")
             ->execute([$newRole, $membreId, $selType, $selId]);
 
+        // Récupère l'user concerné (pour propager les changements de rôle global)
         $uId = $pdo->prepare("SELECT user_id FROM structure_membres WHERE id = ?");
         $uId->execute([$membreId]);
         $uIdVal = (int)$uId->fetchColumn();
 
         if ($newRole === 'admin') {
-
+            // Promotion admin → 'membre_corpo' (accès panel) si l'user est encore 'user'
             if ($uIdVal) {
                 $pdo->prepare("UPDATE users SET role = 'membre_corpo' WHERE id = ? AND role = 'user'")->execute([$uIdVal]);
             }
         } else {
-
+            // Rétrogradation membre/adhérent : si l'user n'est plus admin nulle part
+            // ET son rôle global est 'membre_corpo' (hérité), le ramener à 'user'
+            // (sinon il garderait l'accès au panneau admin via isMembreCorpo()).
             if ($uIdVal) {
                 syncGlobalRoleAfterStructChange($pdo, $uIdVal);
             }
@@ -164,9 +180,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msg = 'Rôle mis à jour.';
     }
 
+    // Retirer un membre
     if ($act === 'retirer') {
         $membreId = (int)$_POST['membre_id'];
 
+        // Récupère l'user_id avant suppression pour la synchro post-retrait
         $uId = $pdo->prepare("SELECT user_id FROM structure_membres WHERE id = ?");
         $uId->execute([$membreId]);
         $uIdVal = (int)$uId->fetchColumn();
@@ -180,6 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msg = 'Membre retiré.';
     }
 
+    // Responsabilités fonctionnelles (cases cumulables)
     if ($act === 'save_all_resp' && $smHasRespCols) {
         $stmtIds = $pdo->prepare(
             "SELECT id FROM structure_membres WHERE structure_type = ? AND structure_id = ? AND statut = 'actif'"
@@ -200,6 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msg = 'Responsabilités enregistrées.';
     }
 
+    // Ajouter un membre par email (3 niveaux possibles)
     if ($act === 'ajouter') {
         $email   = trim($_POST['email'] ?? '');
         $roleAdd = in_array($_POST['role_add'], ['admin','membre','adherent'], true) ? $_POST['role_add'] : 'membre';
@@ -220,6 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // Valider inscription sport (liste d'attente)
     if ($act === 'valider_insc_sport') {
         $inscId = (int)$_POST['insc_id'];
         $pdo->prepare("UPDATE inscriptions_sport SET statut = 'confirme' WHERE id = ?")->execute([$inscId]);
@@ -227,12 +248,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msg = 'Inscription sport confirmée.';
     }
 
+    // Actualiser l'URL pour éviter double-submit
     header("Location: mes-membres.php?type=$selType&id=$selId&msg=" . urlencode($msg));
     exit;
 }
 
 if (isset($_GET['msg'])) $msg = htmlspecialchars($_GET['msg']);
 
+// membres actuels, triés Bureau → Membre → Adhérent
 $respSelect = $smHasRespCols
     ? ', sm.resp_evenement, sm.resp_partenariat, sm.resp_communication, sm.resp_tresorerie'
     : '';
@@ -248,6 +271,7 @@ $stmtMb = $pdo->prepare(
 $stmtMb->execute([$selType, $selId]);
 $membres = $stmtMb->fetchAll();
 
+// Comptes par rôle pour l'affichage
 $nbBureau   = 0;
 $nbMembres  = 0;
 $nbAdherent = 0;
@@ -257,6 +281,7 @@ foreach ($membres as $mb) {
     elseif ($mb['role_in_struct'] === 'adherent')   $nbAdherent++;
 }
 
+// Demandes d'adhésion en attente
 $stmtDem = $pdo->prepare(
     "SELECT da.id, da.user_id, da.message, da.created_at,
             u.username, u.nom, u.prenom, u.email
@@ -268,6 +293,7 @@ $stmtDem = $pdo->prepare(
 $stmtDem->execute([$selType, $selId]);
 $demandes = $stmtDem->fetchAll();
 
+// Inscriptions sport en attente (liste d'attente)
 $inscriptionsAttente = [];
 if ($selType === 'sport') {
     $stmtIA = $pdo->prepare(
@@ -282,6 +308,7 @@ if ($selType === 'sport') {
     $inscriptionsAttente = $stmtIA->fetchAll();
 }
 
+// Nom de la structure sélectionnée
 $selNom = '';
 foreach ($mesStructures as $ms) {
     if ($ms['type'] === $selType && (int)$ms['id'] === $selId) {
@@ -306,6 +333,7 @@ foreach ($mesStructures as $ms) {
   <div class="flash flash--ok"><?= $msg ?></div>
 <?php endif; ?>
 
+<!-- Sélecteur de structure (filtres par type + liste) -->
 <?php
   $typeLabels = ['bde' => 'BDE', 'bds' => 'BDS', 'asso' => 'Association', 'sport' => 'Sport'];
   $groups = ['bde' => [], 'bds' => [], 'asso' => [], 'sport' => []];
@@ -323,7 +351,8 @@ foreach ($mesStructures as $ms) {
       <div style="font-size:.75rem;color:var(--text-muted)"><?= $totalStructs ?> structure<?= $totalStructs > 1 ? 's' : '' ?> au total</div>
     </div>
 
-        <div class="ms-tabs" role="tablist" style="display:flex;gap:var(--s2);flex-wrap:wrap">
+    <!-- Onglets par type -->
+    <div class="ms-tabs" role="tablist" style="display:flex;gap:var(--s2);flex-wrap:wrap">
       <?php
         $tabAll = ['all' => 'Tous'];
         foreach ($groups as $gType => $items) {
@@ -341,9 +370,11 @@ foreach ($mesStructures as $ms) {
       <?php endforeach; ?>
     </div>
 
-        <input type="text" id="ms-search" class="admin-input" placeholder="Rechercher une structure…" autocomplete="off">
+    <!-- Champ de recherche -->
+    <input type="text" id="ms-search" class="admin-input" placeholder="Rechercher une structure…" autocomplete="off">
 
-        <div class="ms-list" id="ms-list" style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-md)">
+    <!-- Liste cliquable -->
+    <div class="ms-list" id="ms-list" style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-md)">
       <?php foreach ($mesStructures as $ms):
           $isSel = ($ms['type'] === $selType && (int)$ms['id'] === $selId);
           $href  = 'mes-membres.php?type=' . urlencode($ms['type']) . '&id=' . (int)$ms['id'];
@@ -366,7 +397,7 @@ foreach ($mesStructures as $ms) {
 <script>
 (function() {
   const tabs = document.querySelectorAll('.ms-tabs .ms-tab');
-  const items = document.querySelectorAll('
+  const items = document.querySelectorAll('#ms-list .ms-item');
   const empty = document.querySelector('#ms-list .ms-empty');
   const search = document.getElementById('ms-search');
   let activeTab = <?= json_encode($activeTab) ?>;
@@ -399,7 +430,8 @@ foreach ($mesStructures as $ms) {
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s6)">
 
-    <div>
+  <!-- Colonne gauche : membres actifs -->
+  <div>
     <div class="admin-card">
       <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s2)">
         <h2 style="margin:0">Membres actifs
@@ -527,9 +559,11 @@ foreach ($mesStructures as $ms) {
     </div>
   </div>
 
-    <div style="display:flex;flex-direction:column;gap:var(--s5)">
+  <!-- Colonne droite : demandes + ajout manuel -->
+  <div style="display:flex;flex-direction:column;gap:var(--s5)">
 
-        <?php if (!empty($demandes)): ?>
+    <!-- Demandes en attente -->
+    <?php if (!empty($demandes)): ?>
     <div class="admin-card">
       <h2>Demandes d'adhésion <span class="badge badge--pending" style="font-size:.7rem;font-weight:600;margin-left:.3rem"><?= count($demandes) ?></span></h2>
       <?php foreach ($demandes as $d): ?>
@@ -557,7 +591,8 @@ foreach ($mesStructures as $ms) {
     </div>
     <?php endif; ?>
 
-        <?php if (!empty($inscriptionsAttente)): ?>
+    <!-- Liste d'attente sport -->
+    <?php if (!empty($inscriptionsAttente)): ?>
     <div class="admin-card">
       <h2>Liste d'attente sport <span class="badge badge--pending" style="font-size:.7rem;font-weight:600;margin-left:.3rem"><?= count($inscriptionsAttente) ?></span></h2>
       <?php foreach ($inscriptionsAttente as $ia): ?>
@@ -574,7 +609,8 @@ foreach ($mesStructures as $ms) {
     </div>
     <?php endif; ?>
 
-        <div class="admin-card">
+    <!-- Ajouter un membre manuellement -->
+    <div class="admin-card">
       <h2>Ajouter un membre</h2>
       <form method="post" class="admin-form">
         <input type="hidden" name="action" value="ajouter">
@@ -600,7 +636,9 @@ foreach ($mesStructures as $ms) {
 </div>
 
 <script>
-
+// Niveau membre dans une structure : on évite onchange=submit (déclenchements
+// fantômes sur restauration BFCache / navigation clavier). Bouton Valider
+// explicite, désactivé tant que la valeur n'a pas changé.
 document.querySelectorAll('.change-role-form').forEach(form => {
   const sel = form.querySelector('select[name="new_role"]');
   const btn = form.querySelector('.change-role-form__save');

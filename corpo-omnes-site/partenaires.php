@@ -8,6 +8,7 @@ require_once 'includes/header.php';
 $partenaires = $pdo->query("SELECT * FROM partenaires WHERE statut='publie' ORDER BY nom ASC")->fetchAll();
 $total       = count($partenaires);
 
+// Couleurs par catégorie (pour le bandeau coloré des cartes)
 $catColors = [
   'Sport'        => ['#22c55e','#16a34a'],
   'Restauration' => ['#f97316','#ea580c'],
@@ -20,13 +21,15 @@ $catColors = [
 
 <main>
 
+  <!-- ─ Hero ──────────────────────────────────────────────────────────────── -->
   <section class="page-hero">
     <div class="container">
       <nav class="breadcrumb"><a href="index.php"><?= htmlspecialchars(corpo_t('common.breadcrumb_home')) ?></a><span>›</span><span><?= htmlspecialchars(corpo_t('pt.crumb')) ?></span></nav>
       <h1><?= htmlspecialchars(corpo_t('pt.hero_title')) ?></h1>
       <p class="page-hero__sub"><?= corpo_t('pt.hero_sub') ?></p>
 
-            <div class="pt-hero-stats">
+      <!-- Chiffres clés rapides -->
+      <div class="pt-hero-stats">
         <div class="pt-hero-stat">
           <span class="pt-hero-stat__num"><?= $total ?></span>
           <span class="pt-hero-stat__label"><?= htmlspecialchars(corpo_t('pt.stat_active')) ?></span>
@@ -43,10 +46,12 @@ $catColors = [
     </div>
   </section>
 
+  <!-- ─ Filtres + Grille ──────────────────────────────────────────────────── -->
   <section class="section">
     <div class="container">
 
-            <div class="pt-filter-bar" id="pt-filters">
+      <!-- Barre de filtres sticky -->
+      <div class="pt-filter-bar" id="pt-filters">
         <div class="pt-filter-left">
           <button class="pt-chip pt-chip--active" data-type=""><?= htmlspecialchars(corpo_t('pt.chip_all')) ?> <span class="pt-chip__count"><?= $total ?></span></button>
           <?php
@@ -77,7 +82,8 @@ $catColors = [
         </div>
       </div>
 
-            <div class="pt-grid" id="partner-grid">
+      <!-- Grille de cartes -->
+      <div class="pt-grid" id="partner-grid">
         <?php foreach ($partenaires as $p):
           [$c1,$c2] = $catColors[$p['type']] ?? $catColors['default'];
           $initiale = mb_strtoupper(mb_substr($p['nom'], 0, 1));
@@ -87,7 +93,8 @@ $catColors = [
                  data-campus="<?= htmlspecialchars($p['campus']) ?>"
                  data-nom="<?= htmlspecialchars(mb_strtolower($p['nom'])) ?>">
 
-                    <div class="pt-card__band" style="background:linear-gradient(135deg,<?= $c1 ?>,<?= $c2 ?>)">
+          <!-- Bandeau couleur catégorie -->
+          <div class="pt-card__band" style="background:linear-gradient(135deg,<?= $c1 ?>,<?= $c2 ?>)">
             <span class="pt-card__cat-badge"><?= htmlspecialchars($p['type']) ?></span>
             <div class="pt-card__logo-wrap">
               <?php if ($p['logo'] && $p['logo'] !== 'images/partner-placeholder.png'): ?>
@@ -98,7 +105,8 @@ $catColors = [
             </div>
           </div>
 
-                    <div class="pt-card__body">
+          <!-- Corps de la carte -->
+          <div class="pt-card__body">
             <h3 class="pt-card__name"><?= htmlspecialchars($p['nom']) ?></h3>
 
             <?php if ($p['offre']): ?>
@@ -142,6 +150,7 @@ $catColors = [
     </div>
   </section>
 
+  <!-- ─ RSE ───────────────────────────────────────────────────────────────── -->
   <section class="section section--alt">
     <div class="container">
       <span class="section-label">Engagement</span>
@@ -173,6 +182,7 @@ $catColors = [
     </div>
   </section>
 
+  <!-- ─ Tableau récapitulatif ─────────────────────────────────────────────── -->
   <section class="section">
     <div class="container">
       <span class="section-label">Annuaire</span>
@@ -199,7 +209,7 @@ $catColors = [
               <td data-label="Code promo"><?= $p['code'] ? '<code>'.htmlspecialchars($p['code']).'</code>' : '-' ?></td>
               <td data-label="Campus"><?= htmlspecialchars($p['campus']) ?></td>
               <td data-label="Lien">
-                <?php if ($p['lien'] && $p['lien'] !== '
+                <?php if ($p['lien'] && $p['lien'] !== '#'): ?>
                   <a href="<?= htmlspecialchars($p['lien']) ?>" target="_blank" rel="noopener">Voir →</a>
                 <?php else: ?>-<?php endif; ?>
               </td>
@@ -211,6 +221,7 @@ $catColors = [
     </div>
   </section>
 
+  <!-- ─ CTA ───────────────────────────────────────────────────────────────── -->
   <section class="cta-section">
     <div class="container">
       <h2 class="cta-section__title">Vous souhaitez devenir partenaire ?</h2>
@@ -224,6 +235,7 @@ $catColors = [
 
 </main>
 
+<!-- Toast copie code promo -->
 <div id="copy-toast" style="
   position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;
   background:#22c55e;color:#fff;border-radius:999px;

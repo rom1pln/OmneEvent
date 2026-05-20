@@ -6,6 +6,7 @@ require_once 'includes/db.php';
 require_once 'includes/associations-activity.php';
 require_once 'includes/header.php';
 
+// stats depuis la BDD
 $nbAssosSql = asso_has_mandat_columns($pdo)
     ? 'SELECT COUNT(*) FROM associations WHERE ' . asso_sql_active_condition()
     : 'SELECT COUNT(*) FROM associations';
@@ -16,6 +17,7 @@ $nbPartenaires = (int)$pdo->query("SELECT COUNT(*) FROM partenaires WHERE statut
 
 <main>
 
+  <!-- hero -->
   <section class="page-hero apropos-hero">
     <div class="container">
       <nav class="breadcrumb" aria-label="<?= htmlspecialchars(corpo_t('apr.breadcrumb_aria')) ?>">
@@ -45,6 +47,7 @@ $nbPartenaires = (int)$pdo->query("SELECT COUNT(*) FROM partenaires WHERE statut
     </div>
   </section>
 
+  <!-- mission -->
   <section class="section">
     <div class="container">
       <span class="section-label"><?= htmlspecialchars(corpo_t('apr.mission_label')) ?></span>
@@ -88,6 +91,7 @@ $nbPartenaires = (int)$pdo->query("SELECT COUNT(*) FROM partenaires WHERE statut
     </div>
   </section>
 
+  <!-- équipe -->
   <section id="equipe" class="section section--alt">
     <div class="container">
       <span class="section-label"><?= htmlspecialchars(corpo_t('apr.gov_label')) ?></span>
@@ -96,7 +100,8 @@ $nbPartenaires = (int)$pdo->query("SELECT COUNT(*) FROM partenaires WHERE statut
         <?= htmlspecialchars(corpo_t('apr.team_intro')) ?>
       </p>
 
-            <div class="team-block">
+      <!-- Bureau exécutif -->
+      <div class="team-block">
         <p class="team-section-title"><span class="team-section-title__bar"></span><?= htmlspecialchars(corpo_t('apr.bureau')) ?></p>
         <div class="team-bureau">
           <article class="t-card">
@@ -120,7 +125,8 @@ $nbPartenaires = (int)$pdo->query("SELECT COUNT(*) FROM partenaires WHERE statut
         </div>
       </div>
 
-            <div class="team-block">
+      <!-- Conseil d'Administration -->
+      <div class="team-block">
         <p class="team-section-title"><span class="team-section-title__bar"></span>Conseil d'Administration</p>
         <div class="team-ca">
           <article class="t-card t-card--ca t-card--tbd">
@@ -162,7 +168,8 @@ $nbPartenaires = (int)$pdo->query("SELECT COUNT(*) FROM partenaires WHERE statut
         </div>
       </div>
 
-            <div class="team-block">
+      <!-- Pôles ouverts au recrutement -->
+      <div class="team-block">
         <p class="team-section-title">
           <span class="team-section-title__bar"></span>
           Pôles ouverts au recrutement
@@ -217,6 +224,7 @@ $nbPartenaires = (int)$pdo->query("SELECT COUNT(*) FROM partenaires WHERE statut
     </div>
   </section>
 
+  <!-- rôles du bureau -->
   <section class="section">
     <div class="container">
       <span class="section-label">Missions</span>
@@ -335,6 +343,7 @@ $nbPartenaires = (int)$pdo->query("SELECT COUNT(*) FROM partenaires WHERE statut
     </div>
   </section>
 
+  <!-- BDE et fédérations -->
   <section class="section section--alt">
     <div class="container">
       <span class="section-label">Réseau</span>
@@ -412,6 +421,7 @@ $nbPartenaires = (int)$pdo->query("SELECT COUNT(*) FROM partenaires WHERE statut
     </div>
   </section>
 
+  <!-- FAQ -->
   <section id="faq" class="section">
     <div class="container">
       <span class="section-label">FAQ</span>
@@ -468,6 +478,7 @@ $nbPartenaires = (int)$pdo->query("SELECT COUNT(*) FROM partenaires WHERE statut
     </div>
   </section>
 
+  <!-- CTA recrutement -->
   <section class="cta-section">
     <div class="container">
       <h2 class="cta-section__title">5 postes ouverts dans nos pôles</h2>

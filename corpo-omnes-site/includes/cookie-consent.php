@@ -1,13 +1,24 @@
 <?php
-
+/**
+ * includes/cookie-consent.php
+ * Bannière + modale de consentement cookies RGPD.
+ * À inclure depuis le footer (juste avant les scripts).
+ *
+ * Variables attendues (auto-définies si absentes) :
+ *   $base       string  Préfixe URL ('' ou '../')
+ */
 if (!function_exists('corpo_t')) {
     require_once __DIR__ . '/i18n.php';
 }
 $base = $base ?? '';
 ?>
-
+<!-- ╔═══════════════════════════════════════════════════════╗
+     ║  COOKIE CONSENT - RGPD / CNIL                         ║
+     ╚═══════════════════════════════════════════════════════╝ -->
 <style>
-
+/* Fallback critique : si style.css n'a pas encore été appliqué (cache,
+   chargement asynchrone…), on garde la bannière correctement positionnée
+   et masquée par défaut. */
 .cc-root[hidden]{display:none!important}
 .cc-banner,.cc-modal,.cc-overlay{position:fixed!important;box-sizing:border-box}
 .cc-banner{left:16px;right:16px;bottom:16px;max-width:980px;margin-left:auto;margin-right:auto;z-index:9000;opacity:0;transform:translateY(20px);pointer-events:none;transition:opacity .35s ease,transform .35s ease}
@@ -19,7 +30,8 @@ $base = $base ?? '';
 .cc-overlay[hidden],.cc-modal[hidden]{display:none!important}
 </style>
 <div class="cc-root" data-cookie-root hidden>
-    <div class="cc-banner" data-cc-banner role="dialog" aria-labelledby="cc-banner-title" aria-describedby="cc-banner-desc" aria-modal="false">
+  <!-- Bannière initiale -->
+  <div class="cc-banner" data-cc-banner role="dialog" aria-labelledby="cc-banner-title" aria-describedby="cc-banner-desc" aria-modal="false">
     <div class="cc-banner__icon" aria-hidden="true">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 2a10 10 0 1 0 10 10c0-.46-.04-.92-.1-1.36a4 4 0 0 1-5.06-5.06A4 4 0 0 1 11.36 2.1 10 10 0 0 0 12 2z"></path>
@@ -44,7 +56,8 @@ $base = $base ?? '';
     </div>
   </div>
 
-    <div class="cc-overlay" data-cc-overlay hidden></div>
+  <!-- Modale détaillée -->
+  <div class="cc-overlay" data-cc-overlay hidden></div>
   <div class="cc-modal" data-cc-modal role="dialog" aria-labelledby="cc-modal-title" aria-modal="true" hidden>
     <button type="button" class="cc-modal__close" data-cc-action="close" aria-label="<?= htmlspecialchars(corpo_t('cookies.modal.close_aria')) ?>">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -59,7 +72,8 @@ $base = $base ?? '';
     </div>
 
     <div class="cc-modal__list">
-            <article class="cc-cat">
+      <!-- Essentiel : forcé, non désactivable -->
+      <article class="cc-cat">
         <header class="cc-cat__head">
           <div>
             <h3 class="cc-cat__title"><?= htmlspecialchars(corpo_t('cookies.cat.essential.title')) ?></h3>
@@ -72,7 +86,8 @@ $base = $base ?? '';
         </header>
       </article>
 
-            <article class="cc-cat">
+      <!-- Préférences -->
+      <article class="cc-cat">
         <header class="cc-cat__head">
           <div>
             <h3 class="cc-cat__title"><?= htmlspecialchars(corpo_t('cookies.cat.preferences.title')) ?></h3>
@@ -85,7 +100,8 @@ $base = $base ?? '';
         </header>
       </article>
 
-            <article class="cc-cat">
+      <!-- Audience / Analytics -->
+      <article class="cc-cat">
         <header class="cc-cat__head">
           <div>
             <h3 class="cc-cat__title"><?= htmlspecialchars(corpo_t('cookies.cat.analytics.title')) ?></h3>
@@ -98,7 +114,8 @@ $base = $base ?? '';
         </header>
       </article>
 
-            <article class="cc-cat">
+      <!-- Marketing -->
+      <article class="cc-cat">
         <header class="cc-cat__head">
           <div>
             <h3 class="cc-cat__title"><?= htmlspecialchars(corpo_t('cookies.cat.marketing.title')) ?></h3>

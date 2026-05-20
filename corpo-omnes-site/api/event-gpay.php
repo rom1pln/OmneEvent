@@ -1,5 +1,10 @@
 <?php
-
+/**
+ * api/event-gpay.php - Pass Google Wallet (événement)
+ *
+ * Nécessite un compte Google Wallet API + clé de service JSON.
+ * Sans configuration, on renvoie 503 (évite un lien mort / erreur brute).
+ */
 declare(strict_types=1);
 
 if (file_exists(__DIR__ . '/../includes/env.php')) {

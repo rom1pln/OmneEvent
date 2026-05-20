@@ -22,6 +22,8 @@ foreach ($assos as &$aRow) {
 unset($aRow);
 $total = $totalActive;
 
+// Valeurs de filtre disponibles
+// Ordre souhaité : écoles non-INSEEC en alpha, puis les 5 programmes INSEEC regroupés
 $ecolesRaw = array_values(array_unique(array_filter(
     array_column($assos, 'ecole'),
     fn($e) => $e && $e !== 'Toutes'
@@ -37,6 +39,7 @@ usort($ecolesRaw, function($a, $b) use ($ecoleOrder) {
 });
 $ecolesDispos = $ecolesRaw;
 
+// Types distincts pour les chips (on mappe en "thèmes")
 $typesDispos = array_values(array_unique(array_column($assos, 'type')));
 $typeOrder   = ['Corpo','BDE','BDS','Association','Fédération','Junior'];
 usort($typesDispos, fn($a,$b) =>
@@ -65,9 +68,11 @@ $assosJson = json_encode($assos, JSON_UNESCAPED_UNICODE);
   <section class="section">
     <div class="container">
 
+      <!-- filtres -->
       <div class="asso-filters">
 
-                <div class="asso-search-wrap">
+        <!-- Recherche par nom -->
+        <div class="asso-search-wrap">
           <svg class="asso-search-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
             <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="1.6"/>
             <path d="M13 13l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
@@ -78,7 +83,8 @@ $assosJson = json_encode($assos, JSON_UNESCAPED_UNICODE);
           <button class="asso-search-clear" id="search-clear" aria-label="<?= htmlspecialchars(corpo_t('asso.search_clear')) ?>" hidden>✕</button>
         </div>
 
-                <div class="filter-section">
+        <!-- Filtre École -->
+        <div class="filter-section">
           <span class="filter-label"><?= htmlspecialchars(corpo_t('asso.filter_school')) ?></span>
           <div class="filter-chips" role="group" aria-label="<?= htmlspecialchars(corpo_t('asso.filter_school')) ?>">
             <button class="filter-chip active" data-ecole=""><?= htmlspecialchars(corpo_t('asso.chip_all_school')) ?></button>
@@ -90,7 +96,8 @@ $assosJson = json_encode($assos, JSON_UNESCAPED_UNICODE);
           </div>
         </div>
 
-                <div class="filter-section">
+        <!-- Filtre Thème / Type de structure -->
+        <div class="filter-section">
           <span class="filter-label"><?= htmlspecialchars(corpo_t('asso.filter_structure')) ?></span>
           <div class="filter-chips" role="group" aria-label="<?= htmlspecialchars(corpo_t('asso.filter_structure')) ?>">
             <button class="filter-chip active" data-type=""><?= htmlspecialchars(corpo_t('asso.chip_all_type')) ?></button>
@@ -102,7 +109,8 @@ $assosJson = json_encode($assos, JSON_UNESCAPED_UNICODE);
           </div>
         </div>
 
-                <div class="filter-row">
+        <!-- Ligne basse : campus + tri + reset -->
+        <div class="filter-row">
           <select id="filter-campus" class="filter-select" aria-label="<?= htmlspecialchars(corpo_t('asso.aria_campus')) ?>">
             <option value=""><?= htmlspecialchars(corpo_t('asso.all_campus')) ?></option>
             <option value="Citadelle"><?= htmlspecialchars(corpo_t('asso.campus_opt_citadelle')) ?></option>
@@ -125,6 +133,7 @@ $assosJson = json_encode($assos, JSON_UNESCAPED_UNICODE);
         <?php endif; ?>
       </div>
 
+      <!-- grille des assos -->
       <div class="grid grid--3" id="asso-grid" role="list" aria-live="polite">
         <?php foreach ($assos as $a): ?>
           <a href="structure.php?slug=<?= urlencode($a['slug']) ?>"

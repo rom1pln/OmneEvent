@@ -1,5 +1,5 @@
 <?php
-
+// journal des mails - parse le fichier de log et affiche les stats, réservé super admin
 $adminTitle = 'Journal des mails';
 $adminPage  = 'mails';
 require_once '../includes/db.php';
@@ -12,6 +12,7 @@ if (!isSuperAdmin()) {
     exit;
 }
 
+// action pour vider le log
 $logPath = __DIR__ . '/../logs/mail.log';
 $flash   = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'clear_log') {
@@ -26,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'clear
     }
 }
 
+// parse une ligne du log genre [2026-05-13 10:42:52] [OK] to=foo@bar.com subject=...
 function parse_mail_log_line(string $line): ?array {
     if (!preg_match('/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\s+\[([^\]]+)\]\s*(.*)$/', $line, $m)) {
         return null;
@@ -34,6 +36,7 @@ function parse_mail_log_line(string $line): ?array {
     $tag  = trim($m[2]);
     $rest = trim($m[3]);
 
+    // Catégorie d'affichage
     $cat = 'other';
     if (preg_match('/^SMTP\s+\d+$/i', $tag)) {
         $cat = 'debug';
@@ -47,6 +50,7 @@ function parse_mail_log_line(string $line): ?array {
         $cat = 'info';
     }
 
+    // Extraction destinataire / sujet / erreur quand présents
     $to      = '';
     $subject = '';
     $error   = '';
@@ -72,7 +76,7 @@ function parse_mail_log_line(string $line): ?array {
 
 $entries = [];
 if (is_file($logPath)) {
-
+    // On lit ligne par ligne ; pour les très gros logs, on prend les 5000 dernières.
     $fh = @fopen($logPath, 'r');
     if ($fh) {
         $buf = [];
@@ -88,8 +92,9 @@ if (is_file($logPath)) {
     }
 }
 
-$filterCat   = $_GET['cat']     ?? 'main';
-$filterRange = $_GET['range']   ?? 'all';
+// filtres depuis l'URL
+$filterCat   = $_GET['cat']     ?? 'main'; // main (=ok+err+dev+info) | ok | err | dev | debug | all
+$filterRange = $_GET['range']   ?? 'all';  // today | 7d | 30d | all
 $filterQ     = trim((string)($_GET['q'] ?? ''));
 
 $now = time();
@@ -100,21 +105,34 @@ elseif ($filterRange === '30d')   $rangeFrom = $now - 30 * 86400;
 
 $rows = [];
 foreach ($entries as $e) {
-
+    // Filtre catégorie
     if ($filterCat === 'main' && $e['cat'] === 'debug') continue;
     if ($filterCat !== 'all' && $filterCat !== 'main' && $e['cat'] !== $filterCat) continue;
-
+    // Filtre date
     if ($rangeFrom !== null) {
         $t = strtotime($e['ts']);
         if ($t === false || $t < $rangeFrom) continue;
     }
-
+    // Filtre texte libre
     if ($filterQ !== '' && stripos($e['raw'], $filterQ) === false) continue;
     $rows[] = $e;
 }
-
+// Tri descendant (plus récent en haut)
 $rows = array_reverse($rows);
 
+// quota du jour - on compte juste les [OK] dans le log
+$quota = corpo_mail_quota_stats($logPath);
+$quotaPct = $quota['limit'] > 0
+    ? min(100, (int)round(($quota['sent_today'] / $quota['limit']) * 100))
+    : 0;
+$quotaLevel = 'ok';
+if ($quotaPct >= 90) {
+    $quotaLevel = 'danger';
+} elseif ($quotaPct >= 70) {
+    $quotaLevel = 'warn';
+}
+
+// stats globales
 $stat = ['total' => 0, 'ok' => 0, 'err' => 0, 'dev' => 0, 'debug' => 0, 'last' => null, 'last_err' => null, 'err_24h' => 0];
 $cut24h = $now - 86400;
 foreach ($entries as $e) {
@@ -129,12 +147,14 @@ foreach ($entries as $e) {
     }
 }
 
+/* ─── Compte des catégories pour les onglets ───────────── */
 $countByCat = ['main' => 0, 'ok' => 0, 'err' => 0, 'dev' => 0, 'debug' => 0, 'all' => count($entries)];
 foreach ($entries as $e) {
     if ($e['cat'] !== 'debug') $countByCat['main']++;
     if (isset($countByCat[$e['cat']])) $countByCat[$e['cat']]++;
 }
 
+/* ─── Helpers UI ───────────────────────────────────────── */
 function mail_log_badge(string $cat): string {
     $map = [
         'ok'    => ['ok',    'Envoyé'],
@@ -157,6 +177,43 @@ function mail_log_link(string $cat, string $range, string $q): string {
 
 <?= $flash ?>
 
+<!-- ─── Quota Brevo (300 / jour par défaut) ─────────────── -->
+<div class="admin-card mail-quota mail-quota--<?= htmlspecialchars($quotaLevel) ?>" style="padding:var(--s5);margin-bottom:var(--s4)">
+  <div class="mail-quota__head">
+    <div>
+      <h2 class="mail-quota__title">Quota d'envoi du jour</h2>
+      <p class="mail-quota__sub">
+        Compteur basé sur les lignes <code>[OK]</code> du journal (mails réellement envoyés via SMTP).
+        Limite configurable : <code>MAIL_DAILY_LIMIT</code> dans le <code>.env</code> (défaut 300 pour Brevo).
+      </p>
+    </div>
+    <div class="mail-quota__figures">
+      <span class="mail-quota__sent"><?= (int)$quota['sent_today'] ?></span>
+      <span class="mail-quota__sep">/</span>
+      <span class="mail-quota__limit"><?= (int)$quota['limit'] ?></span>
+    </div>
+  </div>
+  <div class="mail-quota__bar" role="progressbar"
+       aria-valuenow="<?= (int)$quota['sent_today'] ?>"
+       aria-valuemin="0"
+       aria-valuemax="<?= (int)$quota['limit'] ?>"
+       aria-label="Mails envoyés aujourd'hui">
+    <span class="mail-quota__bar-fill" style="width:<?= $quotaPct ?>%"></span>
+  </div>
+  <div class="mail-quota__footer">
+    <span><strong><?= (int)$quota['remaining_today'] ?></strong> envoi<?= $quota['remaining_today'] > 1 ? 's' : '' ?> restant<?= $quota['remaining_today'] > 1 ? 's' : '' ?> aujourd'hui</span>
+    <span>7 jours : <strong><?= (int)$quota['sent_7d'] ?></strong> OK</span>
+    <span>30 jours : <strong><?= (int)$quota['sent_30d'] ?></strong> OK</span>
+    <span style="color:var(--text-muted)">Date : <?= htmlspecialchars(date('d/m/Y', strtotime($quota['date_today']))) ?></span>
+  </div>
+  <?php if ($quotaLevel === 'danger'): ?>
+    <p class="mail-quota__alert">⚠ Tu approches ou dépasses la limite quotidienne — risque de blocage côté Brevo.</p>
+  <?php elseif ($quotaLevel === 'warn'): ?>
+    <p class="mail-quota__alert mail-quota__alert--warn">Attention : plus de 70 % du quota journalier est utilisé.</p>
+  <?php endif; ?>
+</div>
+
+<!-- ─── Statistiques ─────────────────────────────────── -->
 <div class="admin-card" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--s4);padding:var(--s5)">
   <div>
     <div style="font-size:.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.1em;font-weight:700">Total entrées</div>
@@ -180,6 +237,7 @@ function mail_log_link(string $cat, string $range, string $q): string {
   </div>
 </div>
 
+<!-- ─── Actions ─────────────────────────────────────────── -->
 <div style="display:flex;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s4)">
   <a href="test-mail.php" class="btn">🧪 Envoyer un mail de test</a>
   <?php if (is_file($logPath)): ?>
@@ -191,8 +249,10 @@ function mail_log_link(string $cat, string $range, string $q): string {
   <a href="<?= htmlspecialchars(mail_log_link($filterCat, $filterRange, $filterQ)) ?>" class="btn" style="margin-left:auto">🔄 Rafraîchir</a>
 </div>
 
+<!-- ─── Filtres ─────────────────────────────────────────── -->
 <div class="admin-card" style="padding:var(--s4)">
-    <div style="display:flex;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s4)">
+  <!-- Onglets catégorie -->
+  <div style="display:flex;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s4)">
     <?php
       $tabs = [
         'main'  => ['Métier',     $countByCat['main']],
@@ -213,7 +273,8 @@ function mail_log_link(string $cat, string $range, string $q): string {
     <?php endforeach; ?>
   </div>
 
-    <form method="get" class="admin-form" style="display:flex;gap:var(--s3);flex-wrap:wrap;align-items:flex-end">
+  <!-- Filtres date + recherche -->
+  <form method="get" class="admin-form" style="display:flex;gap:var(--s3);flex-wrap:wrap;align-items:flex-end">
     <input type="hidden" name="cat" value="<?= htmlspecialchars($filterCat) ?>">
     <div class="form-col" style="min-width:160px;flex:0 1 200px">
       <label>Période</label>
@@ -239,6 +300,7 @@ function mail_log_link(string $cat, string $range, string $q): string {
   </form>
 </div>
 
+<!-- ─── Tableau résultats ──────────────────────────────── -->
 <?php if (empty($rows)): ?>
   <div class="admin-card" style="text-align:center;padding:var(--s8)">
     <p style="font-size:1.8rem;margin-bottom:var(--s3)">📭</p>

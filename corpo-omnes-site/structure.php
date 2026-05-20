@@ -1,11 +1,18 @@
 <?php
-
+/**
+ * structure.php - Page publique détaillée d'une structure
+ * URL : structure.php?slug=bde-ginfinity  (association/BDE/BDS)
+ *       structure.php?sport=basket        (sport)
+ *
+ * Affiche : infos, membres, actualités, événements, partenaires
+ */
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/billetterie.php';
 require_once __DIR__ . '/includes/associations-activity.php';
 require_once __DIR__ . '/includes/i18n.php';
 
+// ── Déterminer le type et récupérer la structure ─────────────
 $isSport  = isset($_GET['sport']);
 $slug     = $_GET['slug'] ?? ($_GET['sport'] ?? '');
 
@@ -15,7 +22,7 @@ if (!$slug) {
 }
 
 $struct   = null;
-$type     = 'asso';
+$type     = 'asso'; // asso | bde | bds | sport
 
 if ($isSport) {
     $stmt = $pdo->prepare("SELECT * FROM sports WHERE slug = ?");
@@ -45,10 +52,12 @@ $color      = $struct['couleur'] ?? $struct['color'] ?? '#5D0282';
 $assoInactiveBanner = !$isSport && !asso_is_active($struct);
 $assoInactivePeriod = $assoInactiveBanner ? asso_format_mandat_period($struct) : '';
 
+// ── Vérifier si l'user est membre / admin ───────────────────
 $userId        = isLoggedIn() ? (int)$_SESSION['user_id'] : 0;
 $isMembre      = $userId ? isMembreOf($type, $structId) : false;
 $isAdmin       = $userId ? isAdminOf($type, $structId)  : false;
 
+// École de l'utilisateur (pour le filtre d'éligibilité ci-dessous)
 $userEcole = '';
 if ($userId) {
     $stE = $pdo->prepare("SELECT ecole FROM users WHERE id = ?");
@@ -56,6 +65,8 @@ if ($userId) {
     $userEcole = trim((string)($stE->fetchColumn() ?: ''));
 }
 
+// Liste des écoles autorisées à rejoindre cette structure (NULL/vide = toutes)
+// Concerne uniquement les assos/BDE/BDS (les sports restent ouverts).
 $ecolesEligibles = [];
 if (!$isSport && !empty($struct['ecoles_eligibles'])) {
     $decoded = json_decode((string)$struct['ecoles_eligibles'], true);
@@ -63,23 +74,25 @@ if (!$isSport && !empty($struct['ecoles_eligibles'])) {
 }
 $peutDemander = empty($ecolesEligibles) || ($userEcole && in_array($userEcole, $ecolesEligibles, true));
 
+// ── Actions POST ─────────────────────────────────────────────
 $flashMsg = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $userId) {
     $action = $_POST['action'] ?? '';
     $motiv  = trim($_POST['message'] ?? '');
 
     if ($action === 'rejoindre' && !$isSport && !empty($ecolesEligibles) && (!$userEcole || !in_array($userEcole, $ecolesEligibles, true))) {
-
+        // Refus si l'école de l'utilisateur n'est pas autorisée à rejoindre cette structure
         $flashMsg = "Cette structure n'accepte les demandes que des écoles suivantes : " . implode(', ', $ecolesEligibles) . '.';
-        $action = '';
+        $action = ''; // on neutralise l'action pour éviter le INSERT
     }
 
     if ($action === 'rejoindre') {
-
+        // Sport individuel (accès libre) → inscription directe
         $isLibre = $isSport && ($struct['categorie'] ?? '') === 'individuel';
 
         if ($isLibre) {
-
+            // Sport accès libre : inscription directe (pas de validation).
+            // Le participant est un « adhérent » : non affiché publiquement, contrairement aux membres / bureau.
             $pdo->prepare("INSERT INTO inscriptions_sport (user_id, sport_id, statut) VALUES (?,?,'confirme')
                            ON DUPLICATE KEY UPDATE statut = 'confirme'")->execute([$userId, $structId]);
             $pdo->prepare("INSERT INTO structure_membres (user_id, structure_type, structure_id, role_in_struct, statut)
@@ -87,10 +100,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $userId) {
                            ON DUPLICATE KEY UPDATE statut = 'actif'")->execute([$userId, $structId]);
             $flashMsg = 'Accès libre activé !';
         } else {
-
+            // Sport club OU asso → demande avec motivation, validation par admin
             $stType = $isSport ? 'sport' : $type;
             $stId   = $structId;
-
+            // Vérifie si une demande existe déjà
             $chkExist = $pdo->prepare(
                 "SELECT id FROM demandes_adhesion WHERE user_id=? AND structure_type=? AND structure_id=? AND statut='en_attente'"
             );
@@ -113,12 +126,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $userId) {
             $pdo->prepare("UPDATE sports SET inscrits = GREATEST(0, inscrits-1) WHERE id=?")->execute([$structId]);
         }
         $pdo->prepare("DELETE FROM structure_membres WHERE user_id=? AND structure_type=? AND structure_id=?")->execute([$userId, $type, $structId]);
-
+        // Si l'user était admin de struct et qu'il l'était grâce à 'membre_corpo' hérité,
+        // rétrograder son rôle global si plus aucun statut admin restant.
         syncGlobalRoleAfterStructChange($pdo, $userId);
         $flashMsg = 'Tu as quitté cette structure.';
         $isMembre = false;
     }
 
+    // Retirer une demande d'adhésion en attente
     if ($action === 'retirer_demande') {
         $stType = $isSport ? 'sport' : $type;
         $pdo->prepare(
@@ -127,12 +142,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $userId) {
         $flashMsg = 'Ta demande a été retirée.';
     }
 
+    // Re-fetch struct après action
     if ($isSport) {
         $rf = $pdo->prepare("SELECT * FROM sports WHERE id=?"); $rf->execute([$structId]);
         $struct = $rf->fetch() ?: $struct;
     }
 }
 
+// Re-check statut adhésion
 $demandeEnAttente = false;
 if ($userId && !$isMembre) {
     $chk = $pdo->prepare("SELECT statut FROM demandes_adhesion WHERE user_id = ? AND structure_type = ? AND structure_id = ? ORDER BY created_at DESC LIMIT 1");
@@ -141,6 +158,7 @@ if ($userId && !$isMembre) {
     $demandeEnAttente = ($row && $row['statut'] === 'en_attente');
 }
 
+// Inscription sport déjà faite ?
 $inscriptionSport = null;
 if ($userId && $isSport) {
     $si = $pdo->prepare("SELECT statut FROM inscriptions_sport WHERE user_id = ? AND sport_id = ?");
@@ -148,6 +166,8 @@ if ($userId && $isSport) {
     $inscriptionSport = $si->fetchColumn();
 }
 
+// ── Données associées ────────────────────────────────────────
+// Actualités (publiques pour tous ; « membres » seulement si connecté et membre de la structure)
 $actuStType = $type === 'sport' ? 'sport' : 'asso';
 $membrePourActus = $isMembre || $isAdmin;
 $actus           = $pdo->prepare(
@@ -158,28 +178,18 @@ $actus           = $pdo->prepare(
 $actus->execute([$actuStType, $structId, $membrePourActus ? 1 : 0]);
 $actus = $actus->fetchAll();
 
-$evtStType = $type === 'sport' ? 'sport' : 'asso';
-$membrePourEvts = ($isMembre || $isAdmin) ? 1 : 0;
-if (corpo_evt_has_visibilite_column($pdo)) {
-    $events = $pdo->prepare(
-        "SELECT * FROM evenements WHERE structure_type = ? AND structure_id = ? AND statut = 'publie'
-           AND (IFNULL(visibilite,'public') = 'public' OR (IFNULL(visibilite,'public') = 'membres' AND ? = 1))
-         ORDER BY date ASC"
-    );
-    $events->execute([$evtStType, $structId, $membrePourEvts]);
-    $events = $events->fetchAll();
-} else {
-    $events = $pdo->prepare(
-        "SELECT * FROM evenements WHERE structure_type = ? AND structure_id = ? AND statut = 'publie' ORDER BY date ASC"
-    );
-    $events->execute([$evtStType, $structId]);
-    $events = $events->fetchAll();
-}
+// Événements
+$events = $pdo->prepare("SELECT * FROM evenements WHERE structure_type = ? AND structure_id = ? AND statut = 'publie' ORDER BY date ASC");
+$events->execute([$type === 'sport' ? 'sport' : 'asso', $structId]);
+$events = $events->fetchAll();
 
+// Partenaires
 $partenaires = $pdo->prepare("SELECT * FROM partenaires WHERE structure_type = ? AND structure_id = ? AND statut = 'publie' ORDER BY nom");
 $partenaires->execute([$type === 'sport' ? 'sport' : 'asso', $structId]);
 $partenaires = $partenaires->fetchAll();
 
+// Membres affichés publiquement : bureau (admin) + membres "actifs".
+// Les adhérents ne sont jamais exposés ici (cf. spec : participants non gestionnaires).
 $membres = $pdo->prepare(
     "SELECT u.username, u.nom, u.prenom, u.ecole, sm.role_in_struct
        FROM structure_membres sm
@@ -193,6 +203,7 @@ $membres = $pdo->prepare(
 $membres->execute([$type, $structId]);
 $membres = $membres->fetchAll();
 
+// Données sport spécifiques
 $referents = $entrainements = $resultats = [];
 if ($isSport) {
     $referents = $pdo->prepare("SELECT * FROM sport_referents WHERE sport_id = ?")->execute([$structId]) ? [] : [];
@@ -204,6 +215,7 @@ if ($isSport) {
     $r3->execute([$structId]); $resultats = $r3->fetchAll();
 }
 
+// Sous-structures (pour BDE → ses assos, BDS → ses sports)
 $sousStructures = [];
 if ($type === 'bde') {
     $ss = $pdo->prepare("SELECT * FROM associations WHERE parent_bde_id = ? ORDER BY nom");
@@ -213,6 +225,7 @@ if ($type === 'bde') {
     $ss->execute([$structId]); $sousStructures = $ss->fetchAll();
 }
 
+// ── Titre & Header ──────────────────────────────────────────
 $title = htmlspecialchars($structNom) . ' - Corpo Omnes Lyon';
 $page  = $isSport ? 'sport' : 'associations';
 require_once __DIR__ . '/includes/header.php';
@@ -229,7 +242,8 @@ require_once __DIR__ . '/includes/header.php';
 </style>
 
 <main>
-    <section class="page-hero">
+  <!-- HERO - même style que les autres pages -->
+  <section class="page-hero">
     <div class="container">
       <nav class="breadcrumb">
         <a href="index.php">Accueil</a><span>›</span>
@@ -272,7 +286,8 @@ require_once __DIR__ . '/includes/header.php';
 
       <p class="page-hero__sub"><?= htmlspecialchars(mb_substr($struct['description'] ?? '', 0, 200)) ?></p>
 
-            <div style="display:flex;flex-wrap:wrap;gap:2rem;margin:1.2rem 0">
+      <!-- Stats -->
+      <div style="display:flex;flex-wrap:wrap;gap:2rem;margin:1.2rem 0">
         <?php if ($isSport): ?>
           <?php if ((int)($struct['places'] ?? 0) > 0): ?>
             <div><strong style="font-size:1.4rem"><?= max(0, (int)$struct['places'] - (int)($struct['inscrits'] ?? 0)) ?></strong><br><span style="font-size:.72rem;color:var(--text-muted);text-transform:uppercase">places dispo</span></div>
@@ -285,11 +300,13 @@ require_once __DIR__ . '/includes/header.php';
         <?php endif; ?>
       </div>
 
-            <?php if ($flashMsg): ?>
+      <!-- Flash -->
+      <?php if ($flashMsg): ?>
         <div style="padding:.6rem 1.2rem;background:rgba(93,2,130,.15);border:1px solid rgba(93,2,130,.4);border-radius:8px;font-size:.85rem;color:#c084fc;margin-bottom:1rem"><?= htmlspecialchars($flashMsg) ?></div>
       <?php endif; ?>
 
-            <?php
+      <!-- Actions -->
+      <?php
         $isLibre = $isSport && ($struct['categorie'] ?? '') === 'individuel';
         $places  = (int)($struct['places'] ?? 0);
         $inscrits= (int)($struct['inscrits'] ?? 0);
@@ -361,7 +378,8 @@ require_once __DIR__ . '/includes/header.php';
 
   <div class="struct-body container">
 
-        <?php if (!empty($sousStructures)): ?>
+    <!-- SOUS-STRUCTURES (BDE → assos, BDS → sports) -->
+    <?php if (!empty($sousStructures)): ?>
     <section class="struct-section">
       <h2><?= $type === 'bde' ? 'Associations rattachées' : 'Sports rattachés' ?></h2>
       <div class="struct-sub-grid">
@@ -379,7 +397,8 @@ require_once __DIR__ . '/includes/header.php';
     </section>
     <?php endif; ?>
 
-        <?php if ($isSport && !empty($entrainements)): ?>
+    <!-- ENTRAINEMENTS (sport) -->
+    <?php if ($isSport && !empty($entrainements)): ?>
     <section class="struct-section">
       <h2>⏱ Entraînements</h2>
       <div class="struct-training-grid">
@@ -394,7 +413,8 @@ require_once __DIR__ . '/includes/header.php';
     </section>
     <?php endif; ?>
 
-        <?php if ($isSport && !empty($resultats)): ?>
+    <!-- RÉSULTATS (sport) -->
+    <?php if ($isSport && !empty($resultats)): ?>
     <section class="struct-section">
       <h2>Derniers résultats</h2>
       <div class="struct-results-list">
@@ -413,7 +433,8 @@ require_once __DIR__ . '/includes/header.php';
     </section>
     <?php endif; ?>
 
-        <section class="struct-section">
+    <!-- ÉVÉNEMENTS -->
+    <section class="struct-section">
       <h2>Événements</h2>
       <?php if (empty($events)): ?>
         <p class="struct-empty">Aucun événement à venir pour l'instant.</p>
@@ -422,15 +443,9 @@ require_once __DIR__ . '/includes/header.php';
           <?php foreach ($events as $ev): ?>
             <?php $past = strtotime($ev['date']) < time(); ?>
             <div class="struct-event-card <?= $past ? 'past' : '' ?>">
-              <div class="struct-event-icon"><?= $ev['icon'] ? evt_render_icon($ev['icon']) : '' ?></div>
+              <div class="struct-event-icon"><?= evt_icon_html($ev['icon'] ?? null) ?></div>
               <div class="struct-event-body">
                 <strong><?= htmlspecialchars($ev['titre']) ?></strong>
-                <?php if (evt_normalize_visibilite($ev['visibilite'] ?? 'public') === 'membres'): ?>
-                  <span class="tag" style="font-size:.62rem;margin-left:4px">🔒 Membres</span>
-                <?php endif; ?>
-                <?php if ((int)($ev['inscription_membres'] ?? 0) === 1): ?>
-                  <span class="tag" style="font-size:.62rem;margin-left:4px">🎫 Inscr. membres</span>
-                <?php endif; ?>
                 <span><?= date('d/m/Y', strtotime($ev['date'])) ?><?= $ev['heure'] ? ' · ' . htmlspecialchars($ev['heure']) : '' ?></span>
                 <?php if ($ev['lieu']): ?>
                   <span class="struct-event-lieu"><?= htmlspecialchars($ev['lieu']) ?></span>
@@ -453,7 +468,8 @@ require_once __DIR__ . '/includes/header.php';
       <?php endif; ?>
     </section>
 
-        <section class="struct-section">
+    <!-- ACTUALITÉS -->
+    <section class="struct-section">
       <h2>Actualités</h2>
       <?php if (empty($actus)): ?>
         <p class="struct-empty">Pas encore d'actualités publiées.</p>
@@ -470,7 +486,8 @@ require_once __DIR__ . '/includes/header.php';
       <?php endif; ?>
     </section>
 
-        <?php if (!empty($partenaires)): ?>
+    <!-- PARTENAIRES -->
+    <?php if (!empty($partenaires)): ?>
     <section class="struct-section">
       <h2>Partenaires</h2>
       <div class="struct-partners-grid">
@@ -492,7 +509,8 @@ require_once __DIR__ . '/includes/header.php';
     </section>
     <?php endif; ?>
 
-        <?php if ($isSport && !empty($referents)): ?>
+    <!-- MEMBRES / REFERENTS -->
+    <?php if ($isSport && !empty($referents)): ?>
     <section class="struct-section">
       <h2>Référents</h2>
       <div class="struct-members-grid">
@@ -546,6 +564,7 @@ require_once __DIR__ . '/includes/header.php';
     <?php endif; ?>
     <?php endif; ?>
 
-  </div></main>
+  </div><!-- /.struct-body -->
+</main>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

@@ -1,4 +1,6 @@
 <?php
+// valide un QR code de billet
+// POST { payload, evenement_id } → JSON { ok, msg, already?, participant? }
 
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
@@ -17,6 +19,7 @@ if (!$payload) {
     echo json_encode(['ok'=>false,'msg'=>'Aucune donnée fournie']); exit;
 }
 
+// Vérifie que l'admin a le droit de scanner cet event
 $ev = $pdo->prepare("SELECT * FROM evenements WHERE id=?");
 $ev->execute([$evtId]);
 $event = $ev->fetch();
@@ -30,6 +33,7 @@ if (!$canScan) {
     echo json_encode(['ok'=>false,'msg'=>'Pas les droits sur cet événement']); exit;
 }
 
+// Recherche du billet (préfixe limité à cet event pour réduire l'ambiguïté)
 $look = billet_scan_lookup($pdo, $payload, $evtId);
 if (!$look['ok']) {
     echo json_encode(['ok'=>false,'msg'=>$look['msg']]); exit;
@@ -43,6 +47,7 @@ if ((int)$ins['evenement_id'] !== $evtId) {
     ]); exit;
 }
 
+// Marquage du scan
 $res = billet_scan_mark($pdo, (int)$ins['id'], (int)currentUserId());
 $participant = $res['inscription'] ?: $ins;
 

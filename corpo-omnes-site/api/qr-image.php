@@ -1,4 +1,6 @@
 <?php
+// génère un QR code en SVG localement (pas d'appel externe)
+// GET ?p=<payload>&s=<size>
 
 require_once __DIR__ . '/../includes/lib/qrcode.php';
 
@@ -10,14 +12,16 @@ if ($payload === '') {
     exit('Missing payload.');
 }
 
+// Cache 1h (les billets sont stables)
 header('Content-Type: image/svg+xml; charset=utf-8');
 header('Cache-Control: public, max-age=3600, immutable');
 
 try {
-
+    // Niveau de correction d'erreur élevé (H) → tolère 30 % d'occlusion
     $qr = QRCode::getMinimumQRCode($payload, QR_ERROR_CORRECT_LEVEL_H);
     $modules = $qr->getModuleCount();
 
+    // Marge (en modules) → 2 minimum pour la "quiet zone" QR standard
     $margin = 2;
     $total  = $modules + 2 * $margin;
     $cell   = $size / $total;

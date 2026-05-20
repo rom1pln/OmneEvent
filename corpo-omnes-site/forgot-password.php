@@ -1,5 +1,5 @@
 <?php
-
+// reset mot de passe - envoie un lien si l'email existe (même message dans tous les cas pour pas leaker)
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/i18n.php';
@@ -21,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $st->execute([$email]);
             $user = $st->fetch();
             if ($user) {
-
+                // Invalide les anciens tokens non utilisés du même user
                 $pdo->prepare(
                     "UPDATE password_resets SET used_at = NOW()
                      WHERE user_id = ? AND used_at IS NULL"

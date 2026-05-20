@@ -1,7 +1,8 @@
-
+// Fonctionnalités jQuery : menu burger, retour en haut, FAQ, dropdown, carrousel, lightbox
 
 $(function () {
 
+  // --- menu burger ---
   const $toggle = $('#nav-toggle');
   const $menu   = $('#nav-menu');
 
@@ -43,10 +44,12 @@ $(function () {
     }
   });
 
+  // ferme si on clique sur un lien (navigation réelle)
   $menu.on('click', 'a', function () {
     closeBurger();
   });
 
+  // Ferme le menu quand on clique en dehors de .nav
   $(document).on('click', function (e) {
     if (!$toggle.length) return;
     if (!$(e.target).closest('.nav').length) {
@@ -54,12 +57,15 @@ $(function () {
     }
   });
 
+  // si on repasse en mode desktop, on referme le menu
   $(window).on('resize.navlock', function () {
     if (window.matchMedia('(min-width: 769px)').matches) {
       closeBurger();
     }
   });
 
+
+  // --- bouton retour en haut ---
   const $backTop = $('<button>', {
     id:           'back-top',
     class:        'back-top',
@@ -75,12 +81,16 @@ $(function () {
     $('html, body').animate({ scrollTop: 0 }, 400);
   });
 
+
+  // --- dropdown menu ---
+  // stopPropagation nécessaire sinon le handler global referme direct ce qu'on vient d'ouvrir
   $(document).on('click', '.nav__dropdown-toggle', function (e) {
     e.stopPropagation();
     const $btn    = $(this);
     const $item   = $btn.closest('.nav__item--dropdown');
     const wasOpen = $item.hasClass('open');
 
+    // un seul dropdown ouvert à la fois
     $('.nav__item--dropdown').not($item).removeClass('open')
       .find('.nav__dropdown-toggle').attr('aria-expanded', 'false');
 
@@ -88,12 +98,14 @@ $(function () {
     $btn.attr('aria-expanded', String(!wasOpen));
   });
 
+  // ferme si on clique ailleurs
   $(document).on('click', function (e) {
     if ($(e.target).closest('.nav__item--dropdown').length) return;
     $('.nav__item--dropdown.open').removeClass('open')
       .find('.nav__dropdown-toggle').attr('aria-expanded', 'false');
   });
 
+  // Échap ferme tout
   $(document).on('keydown', function (e) {
     if (e.key !== 'Escape') return;
     $('.nav__item--dropdown.open').removeClass('open')
@@ -101,6 +113,8 @@ $(function () {
     if ($menu.hasClass('open')) closeBurger();
   });
 
+
+  // --- carrousel campus ---
   const $carousel = $('#campus-carousel');
 
   if ($carousel.length) {
@@ -109,6 +123,7 @@ $(function () {
     const total   = $slides.length;
     let   current = 0;
 
+    // génère les petits ronds de navigation
     const $dots = $carousel.find('.carousel__dots');
     for (let i = 0; i < total; i++) {
       $('<button>').addClass('carousel__dot' + (i === 0 ? ' carousel__dot--active' : ''))
@@ -117,15 +132,15 @@ $(function () {
     }
 
     function goTo(idx) {
-
       if (idx < 0)     idx = total - 1;
       if (idx >= total) idx = 0;
       current = idx;
 
       const offset = -current * 100;
-
+      // plus simple via CSS % que jQuery animate avec cssHook transform
       $track.css('transform', 'translateX(' + offset + '%)');
 
+      // met a jour les dots
       $dots.find('.carousel__dot').removeClass('carousel__dot--active')
         .eq(current).addClass('carousel__dot--active');
     }
@@ -136,11 +151,14 @@ $(function () {
       goTo($(this).index());
     });
 
+    // défile tout seul toutes les 5 secondes
     let autoTimer = setInterval(function () { goTo(current + 1); }, 5000);
     $carousel.on('mouseenter', function () { clearInterval(autoTimer); });
     $carousel.on('mouseleave', function () { autoTimer = setInterval(function () { goTo(current + 1); }, 5000); });
   }
 
+
+  // --- lightbox ---
   const $lightbox = $('#lightbox');
 
   $(document).on('click', '.lightbox-trigger', function (e) {
@@ -165,11 +183,13 @@ $(function () {
     if (e.key === 'Escape' && !$lightbox.attr('hidden')) { closeLightbox(); }
   });
 
+
   $(document).on('click', '.faq-item__trigger', function () {
     const $item  = $(this).closest('.faq-item');
     const $body  = $item.find('.faq-item__body');
     const isOpen = $item.hasClass('open');
 
+    // un seul item FAQ ouvert à la fois
     $('.faq-item.open').not($item).each(function () {
       $(this).removeClass('open')
              .find('.faq-item__body').slideUp(250);

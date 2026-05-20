@@ -1,5 +1,8 @@
 <?php
-
+/**
+ * mes-sports.php - Espace personnel : mes sports
+ * Affiche les sports auxquels l'user est inscrit, ses entraînements et résultats.
+ */
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/i18n.php';
@@ -8,6 +11,7 @@ requireLogin();
 
 $userId = (int)$_SESSION['user_id'];
 
+// ── Mes inscriptions sport ─────────────────────────────────
 $stmt = $pdo->prepare(
     "SELECT sp.*, isc.statut AS insc_statut, isc.created_at AS inscrit_le
      FROM inscriptions_sport isc
@@ -20,6 +24,7 @@ $mesSports = $stmt->fetchAll();
 
 $sportIds = array_column($mesSports, 'id');
 
+// Entrainements & résultats récents pour mes sports
 $entrainements = $resultats = [];
 if (!empty($sportIds)) {
     $in = implode(',', array_fill(0, count($sportIds), '?'));
@@ -88,7 +93,8 @@ require_once __DIR__ . '/includes/header.php';
       </div>
     </section>
 
-        <?php if (!empty($entrainements)): ?>
+    <!-- Planning entraînements -->
+    <?php if (!empty($entrainements)): ?>
     <section class="mes-section">
       <h2><?= htmlspecialchars(corpo_t('mes_sport.planning_h2')) ?></h2>
       <div class="mes-training-list">
@@ -105,7 +111,8 @@ require_once __DIR__ . '/includes/header.php';
     </section>
     <?php endif; ?>
 
-        <?php if (!empty($resultats)): ?>
+    <!-- Résultats récents -->
+    <?php if (!empty($resultats)): ?>
     <section class="mes-section">
       <h2><?= htmlspecialchars(corpo_t('mes_sport.results_h2')) ?></h2>
       <div class="struct-results-list">
@@ -127,6 +134,7 @@ require_once __DIR__ . '/includes/header.php';
 
   <?php endif; ?>
 
-  </div></main>
+  </div><!-- /.mes-page.container -->
+</main>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

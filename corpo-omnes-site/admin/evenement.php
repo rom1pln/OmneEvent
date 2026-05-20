@@ -19,6 +19,7 @@ if (!$ev) {
     exit;
 }
 
+// ── Contrôle d'accès : admin Corpo ou périmètre événements (bureau + resp. événements)
 $evStType = (string)($ev['structure_type'] ?? 'asso');
 $evStId   = (int)($ev['structure_id'] ?? 0);
 $canManage = canManageEvenement($pdo, $ev);
@@ -33,10 +34,12 @@ $mode  = evt_normalize_mode($ev['mode_inscription'] ?? 'aucune');
 $prix  = (float)($ev['prix'] ?? 0);
 $places = (int)($ev['places'] ?? 0);
 
-$emitsTicket = evt_mode_emits_ticket($mode);
-$isPaid      = evt_mode_is_paid($mode);
-$hasDemandes = false;
+/* Capacités selon le mode */
+$emitsTicket = evt_mode_emits_ticket($mode);    // billet + QR généré
+$isPaid      = evt_mode_is_paid($mode);          // paiement SumUp
+$hasDemandes = false;                            // legacy "demandes" - désormais désactivé
 
+// ── Actions admin ────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = $_POST['action'] ?? '';
 
@@ -47,11 +50,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($act === 'promote_waitlist' && !empty($_POST['inscription_id'])) {
         $insId = (int)$_POST['inscription_id'];
-        $pdo->prepare("UPDATE inscriptions_evenement SET statut='confirme', waitlist_position=NULL WHERE id=? AND evenement_id=?")
-            ->execute([$insId, $id]);
-        billet_recompute_compteur($pdo, $id);
-        billet_recompute_waitlist($pdo, $id);
-        $flash = '<div class="flash flash--ok">Participant promu en liste confirmée.</div>';
+        if (billet_promote_waitlist($pdo, $insId)) {
+            $flash = '<div class="flash flash--ok">Participant promu — notification envoyée si l\'email est valide.</div>';
+        } else {
+            $flash = '<div class="flash flash--err">Promotion impossible (inscription introuvable ou déjà confirmée).</div>';
+        }
     }
 
     if ($act === 'reset_scan' && !empty($_POST['inscription_id'])) {
@@ -62,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($act === 'mark_scanned' && !empty($_POST['inscription_id'])) {
         $insId = (int)$_POST['inscription_id'];
-
+        // Vérifie que le billet appartient bien à cet événement
         $check = $pdo->prepare("SELECT id FROM inscriptions_evenement WHERE id=? AND evenement_id=?");
         $check->execute([$insId, $id]);
         if (!$check->fetchColumn()) {
@@ -85,6 +88,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $flash = '<div class="flash flash--ok">Demande marquée traitée.</div>';
     }
 
+    // tarifs de l'événement
+    // Détecte si la colonne frais_a_charge_client est présente (migration appliquée).
     $hasFraisClient = false;
     try {
         $c = $pdo->query("SHOW COLUMNS FROM evenement_tarifs LIKE 'frais_a_charge_client'");
@@ -179,6 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $flash = '<div class="flash flash--ok">Tarif supprimé.</div>';
     }
 
+    // gestion des codes promo
     if ($act === 'add_promo') {
         try {
             $pdo->prepare(
@@ -210,6 +216,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// ── Données ──────────────────────────────────────────────────
 $inscrits = $pdo->prepare(
     "SELECT i.*, u.username, u.email AS u_email, u.ecole AS u_ecole, u.promotion AS u_promo
        FROM inscriptions_evenement i
@@ -223,13 +230,14 @@ $inscrits = $pdo->prepare(
 $inscrits->execute([$id]);
 $participants = $inscrits->fetchAll();
 
+// Anciennes demandes "renseignement" - affichées s'il en reste (legacy)
 $demandes = [];
 try {
     $d = $pdo->prepare("SELECT * FROM demandes_renseignement_evenement WHERE evenement_id=? ORDER BY created_at DESC");
     $d->execute([$id]);
     $demandes = $d->fetchAll();
     $hasDemandes = !empty($demandes);
-} catch (Throwable $e) {  }
+} catch (Throwable $e) { /* table peut ne pas exister */ }
 
 $paiements = [];
 if ($isPaid) {
@@ -237,9 +245,10 @@ if ($isPaid) {
         $t = $pdo->prepare("SELECT * FROM paiement_transactions WHERE evenement_id=? ORDER BY id DESC");
         $t->execute([$id]);
         $paiements = $t->fetchAll();
-    } catch (Throwable $e) {  }
+    } catch (Throwable $e) { /* table peut ne pas exister */ }
 }
 
+// chargement des tarifs & promos (billetterie seulement)
 $tarifs = [];
 $promos = [];
 if ($isPaid) {
@@ -256,6 +265,7 @@ if ($isPaid) {
 }
 $ECOLES_ALL = ['ECE','ESCE','HEIP','INSEEC Bachelor','INSEEC BBA','INSEEC BTS','INSEEC GE','INSEEC MSc','Sup de Pub'];
 
+// Stats
 $nbConfirme = count(array_filter($participants, fn($p) => $p['statut'] === 'confirme'));
 $nbAttente  = count(array_filter($participants, fn($p) => $p['statut'] === 'liste_attente'));
 $nbScanned  = count(array_filter($participants, fn($p) => !empty($p['qr_scanned_at']) && $p['statut'] === 'confirme'));
@@ -269,7 +279,7 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
   <a href="evenements.php" class="adm-evt-back">← Retour à la liste</a>
   <div class="adm-evt-title-row">
     <h1 class="admin-page-title" style="margin:0">
-      <?= evt_render_icon($ev['icon'] ?? null) ?> <?= htmlspecialchars($ev['titre']) ?>
+      <?= evt_icon_html($ev['icon'] ?? null, 'evt-emoji evt-emoji--sm') ?> <?= htmlspecialchars($ev['titre']) ?>
     </h1>
     <span class="badge badge--<?= $ev['statut']==='publie'?'ok':($ev['statut']==='en_attente'?'pending':'ko') ?>">
       <?= htmlspecialchars($ev['statut']) ?>
@@ -285,6 +295,7 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
 
 <?= $flash ?>
 
+<!-- ─── Statistiques ──────────────────────────────────── -->
 <div class="adm-evt-stats">
   <div class="adm-evt-stat">
     <span class="adm-evt-stat__num"><?= $nbConfirme ?></span>
@@ -316,6 +327,7 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
   </div>
 </div>
 
+<!-- onglets de navigation (participants / tarifs / promos / scanner) -->
 <div class="adm-evt-tabs" role="tablist">
   <button type="button" class="adm-evt-tab is-active" data-tab="participants">Participants (<?= count($participants) ?>)</button>
   <?php if ($emitsTicket): ?>
@@ -334,6 +346,7 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
   <button type="button" class="adm-evt-tab" data-tab="export">Export</button>
 </div>
 
+<!-- ─── Panel : Participants ─────────────────────────── -->
 <section class="adm-evt-panel is-active" data-panel="participants">
   <?php if (!empty($participants) && $emitsTicket):
     $nbConfirmeTotal = $nbConfirme; // participants à scanner
@@ -393,7 +406,7 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
       <table class="admin-table" id="participants-table">
         <thead>
           <tr>
-            <th>
+            <th>#</th><th>Participant</th><th>Statut</th><th>Scan</th>
             <?php if ($isPaid): ?><th>Paiement</th><?php endif; ?>
             <th>Inscrit le</th><th>Actions</th>
           </tr>
@@ -428,7 +441,7 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
               ?>
               <span class="badge badge--<?= $statutClass ?>"><?= htmlspecialchars($p['statut']) ?></span>
               <?php if ($p['statut'] === 'liste_attente' && $p['waitlist_position']): ?>
-                <br><small style="color:var(--text-muted)">
+                <br><small style="color:var(--text-muted)">#<?= (int)$p['waitlist_position'] ?> de la file</small>
               <?php endif; ?>
             </td>
             <td data-label="Scan">
@@ -500,10 +513,12 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
   </div>
 </section>
 
+<!-- ─── Panel : Scanner (refonte design) ─────────────── -->
 <?php if ($emitsTicket): ?>
 <section class="adm-evt-panel scan-panel" data-panel="scanner" hidden>
 
-    <header class="scan-hero">
+  <!-- En-tête du scanner avec stats live -->
+  <header class="scan-hero">
     <div class="scan-hero__left">
       <h2 class="scan-hero__title">
         <span class="scan-hero__icon" aria-hidden="true">📷</span>
@@ -527,7 +542,8 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
     </div>
   </header>
 
-    <div class="scan-preview" id="scan-preview">
+  <!-- Caméra + viseur stylé -->
+  <div class="scan-preview" id="scan-preview">
     <div class="scan-preview__box">
       <span class="scan-preview__icon" aria-hidden="true">📷</span>
       <p>Le scan s’ouvre en <strong>plein écran</strong> pour viser les QR codes du billet.</p>
@@ -548,7 +564,8 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
       <div class="scan-stage__frame scan-fullscreen__frame" id="scan-stage-frame">
         <div class="scanner-video" id="scanner-video"></div>
 
-            <div class="scan-overlay" id="scan-overlay" aria-live="polite">
+      <!-- Overlay de feedback plein écran -->
+      <div class="scan-overlay" id="scan-overlay" aria-live="polite">
         <div class="scan-overlay__icon" id="scan-overlay-icon"></div>
         <div class="scan-overlay__title" id="scan-overlay-title"></div>
         <div class="scan-overlay__sub" id="scan-overlay-sub"></div>
@@ -560,7 +577,8 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
     </div>
   </div>
 
-    <div class="scan-actions">
+  <!-- Boutons principaux (sticky bottom sur mobile) -->
+  <div class="scan-actions">
     <button type="button" class="scan-btn scan-btn--start scan-btn--launch" id="scan-start">
       <span class="scan-btn__icon" aria-hidden="true">▶</span>
       <span class="scan-btn__label">Lancer le scan</span>
@@ -574,7 +592,8 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
     </div>
   </div>
 
-    <div class="scan-manual-card">
+  <!-- Validation manuelle -->
+  <div class="scan-manual-card">
     <div class="scan-manual-card__head">
       <span class="scan-manual-card__icon" aria-hidden="true">⌨️</span>
       <div>
@@ -596,9 +615,11 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
     </form>
   </div>
 
-    <div class="scanner-result" id="scanner-result" hidden></div>
+  <!-- Dernier résultat -->
+  <div class="scanner-result" id="scanner-result" hidden></div>
 
-    <div class="scan-log-card">
+  <!-- Historique des scans -->
+  <div class="scan-log-card">
     <div class="scan-log-card__head">
       <h3>📜 Historique de la session</h3>
       <span class="scan-log-card__count" id="scan-log-count">0</span>
@@ -611,6 +632,7 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
 </section>
 <?php endif; ?>
 
+<!-- ─── Panel : Tarifs (billetterie) ──────────────────── -->
 <?php if ($isPaid): ?>
 <section class="adm-evt-panel" data-panel="tarifs" hidden>
   <div class="admin-card">
@@ -626,7 +648,8 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
       </button>
     </div>
 
-        <div class="tarif-info-box" style="margin-bottom:var(--s4);padding:var(--s3) var(--s4);border-radius:var(--r-md);border:1px solid rgba(139,47,201,.35);background:rgba(93,2,130,.10);font-size:.85rem;line-height:1.5">
+    <!-- Bandeau d'info : explique la relation prix de base / tarifs détaillés -->
+    <div class="tarif-info-box" style="margin-bottom:var(--s4);padding:var(--s3) var(--s4);border-radius:var(--r-md);border:1px solid rgba(139,47,201,.35);background:rgba(93,2,130,.10);font-size:.85rem;line-height:1.5">
       <strong style="display:block;margin-bottom:4px;color:#c4b5fd">ℹ️ Comment ça marche</strong>
       <?php if (empty($tarifs)): ?>
         Aucun tarif détaillé n'est défini pour le moment. Les acheteurs paieront le
@@ -641,7 +664,8 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
       <?php endif; ?>
     </div>
 
-        <form method="post" class="admin-form tarif-form" id="tarif-form-add" hidden style="margin-bottom:var(--s5);padding:var(--s4);background:rgba(255,255,255,.02);border-radius:var(--r-md);border:1px solid var(--border)"
+    <!-- Form ajout -->
+    <form method="post" class="admin-form tarif-form" id="tarif-form-add" hidden style="margin-bottom:var(--s5);padding:var(--s4);background:rgba(255,255,255,.02);border-radius:var(--r-md);border:1px solid var(--border)"
           data-fee-form>
       <input type="hidden" name="action" value="add_tarif">
       <h3 style="margin:0 0 var(--s3)">Nouveau tarif</h3>
@@ -675,7 +699,8 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
         </div>
       </div>
 
-            <div class="tarif-fee-recap" data-fee-recap aria-live="polite"></div>
+      <!-- Récap des frais (rendu live en JS) -->
+      <div class="tarif-fee-recap" data-fee-recap aria-live="polite"></div>
 
       <button type="submit" class="btn btn--primary">Créer le tarif →</button>
       <button type="button" class="btn" onclick="document.getElementById('tarif-form-add').hidden = true" style="background:var(--surface);border-color:var(--border)">Annuler</button>
@@ -791,6 +816,7 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
   </div>
 </section>
 
+<!-- ─── Panel : Codes promo ───────────────────────────── -->
 <section class="adm-evt-panel" data-panel="codes" hidden>
   <div class="admin-card">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--s3);margin-bottom:var(--s4)">
@@ -886,6 +912,7 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
 </section>
 <?php endif; ?>
 
+<!-- ─── Panel : Demandes (legacy - anciens "renseignement par mail") ────────────────── -->
 <?php if ($hasDemandes): ?>
 <section class="adm-evt-panel" data-panel="demandes" hidden>
   <div class="admin-card" style="padding:0;overflow:hidden">
@@ -926,6 +953,7 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
 </section>
 <?php endif; ?>
 
+<!-- ─── Panel : Paiements ────────────────────────────── -->
 <?php if (!empty($paiements)): ?>
 <section class="adm-evt-panel" data-panel="paiements" hidden>
   <div class="admin-card" style="padding:0;overflow:hidden">
@@ -949,6 +977,7 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
 </section>
 <?php endif; ?>
 
+<!-- ─── Panel : Export ───────────────────────────────── -->
 <section class="adm-evt-panel" data-panel="export" hidden>
   <div class="admin-card">
     <h2>Exporter les données</h2>
@@ -963,11 +992,12 @@ $modeLabel = EVT_MODES_LABELS[$mode] ?? $mode;
   </div>
 </section>
 
+<!-- Charge la lib de scan QR : version locale (évite les blocages Tracking Prevention d'Edge) -->
 <script src="../js/lib/html5-qrcode.min.js?v=<?= @filemtime(__DIR__ . '/../js/lib/html5-qrcode.min.js') ?>"
         onload="window.__qrLibLoaded = true; document.dispatchEvent(new Event('qr-lib-ready'));"
         onerror="console.error('[scan] Lib html5-qrcode introuvable à ../js/lib/html5-qrcode.min.js - recharge la page.');"></script>
 <script>
-
+// helpers UI pour les tarifs et promos
 function toggleTarifEdit(id) {
   const row = document.getElementById('tarif-edit-' + id);
   if (row) row.hidden = !row.hidden;
@@ -981,6 +1011,7 @@ function copyPromoUrl(path, btn) {
   });
 }
 
+// calcul live des frais : SumUp si <= 25€, Stripe sinon
 (function () {
   const CONF = {
     threshold:   <?= json_encode(paiement_threshold()) ?>,
@@ -1054,6 +1085,7 @@ function copyPromoUrl(path, btn) {
   document.querySelectorAll('form[data-fee-form]').forEach(bind);
 })();
 
+// recherche et filtres dans la liste des participants
 (function () {
   const search = document.getElementById('participants-search');
   if (!search) return;
@@ -1095,6 +1127,7 @@ function copyPromoUrl(path, btn) {
   apply();
 })();
 
+// gestion des onglets (participants / tarifs / scanner)
 document.querySelectorAll('.adm-evt-tab').forEach(tab => {
   tab.addEventListener('click', () => {
     const target = tab.dataset.tab;
@@ -1107,6 +1140,7 @@ document.querySelectorAll('.adm-evt-tab').forEach(tab => {
   });
 });
 
+// scanner QR (html5-qrcode)
 (function () {
   const startBtn = document.getElementById('scan-start');
   if (!startBtn) return; // pas de scanner sur cet event
@@ -1179,12 +1213,13 @@ document.querySelectorAll('.adm-evt-tab').forEach(tab => {
     else if (color && /#ff9500|orange/i.test(color)) statusEl.classList.add('scan-stage__status--warn');
   }
   function checkLibStatus() {
-    if (window.Html5Qrcode) setStatus('✓ Lib prête', '
+    if (window.Html5Qrcode) setStatus('✓ Lib prête', '#6ed18c');
     else setStatus('⏳ Lib en chargement…');
   }
   checkLibStatus();
   document.addEventListener('qr-lib-ready', checkLibStatus);
   setTimeout(() => { if (!window.Html5Qrcode) setStatus('✗ Lib introuvable (vérifie /js/lib/)', '#ff8d8b'); }, 5000);
+
 
   let qrInstance = null;
   let lastScanned = '';
@@ -1196,6 +1231,7 @@ document.querySelectorAll('.adm-evt-tab').forEach(tab => {
     result.innerHTML = html;
   }
 
+  // overlay plein écran affiché après scan (ok/erreur)
   const overlay      = document.getElementById('scan-overlay');
   const overlayIcon  = document.getElementById('scan-overlay-icon');
   const overlayTitle = document.getElementById('scan-overlay-title');
@@ -1222,6 +1258,7 @@ document.querySelectorAll('.adm-evt-tab').forEach(tab => {
     }, status === 'ok' ? 1800 : 2800);
   }
 
+  // Petit bip via WebAudio (pas de fichier à charger)
   let audioCtx = null;
   function playBeep(status) {
     try {
@@ -1237,7 +1274,7 @@ document.querySelectorAll('.adm-evt-tab').forEach(tab => {
       osc.start();
       osc.stop(audioCtx.currentTime + 0.2);
       if (status === 'ok') {
-
+        // Double bip pour validation OK
         setTimeout(() => {
           const o2 = audioCtx.createOscillator();
           const g2 = audioCtx.createGain();
@@ -1248,7 +1285,7 @@ document.querySelectorAll('.adm-evt-tab').forEach(tab => {
           o2.start(); o2.stop(audioCtx.currentTime + 0.2);
         }, 120);
       }
-    } catch (e) {  }
+    } catch (e) { /* ignore : pas d'audio */ }
   }
 
   function addLog(html, ok = true) {
@@ -1266,7 +1303,7 @@ document.querySelectorAll('.adm-evt-tab').forEach(tab => {
   }
 
   async function handleScan(payload) {
-
+    // Évite les doubles scans rapides du même code
     const now = Date.now();
     if (payload === lastScanned && (now - lastScannedAt) < 3000) return;
     lastScanned = payload; lastScannedAt = now;
@@ -1415,6 +1452,7 @@ document.querySelectorAll('.adm-evt-tab').forEach(tab => {
     if (v) { handleScan(v); manualInp.value = ''; }
   });
 
+  // Liste les caméras quand la lib est prête (peut nécessiter une autorisation préalable)
   document.addEventListener('qr-lib-ready', () => setTimeout(listCameras, 200));
   if (window.Html5Qrcode) setTimeout(listCameras, 500);
 })();

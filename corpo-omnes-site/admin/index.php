@@ -4,6 +4,7 @@ $adminPage  = 'dashboard';
 require_once '../includes/db.php';
 require_once 'includes/admin-header.php';
 
+// Compteurs disponibles selon le rôle
 $counts = [];
 try {
     $counts['associations'] = $pdo->query("SELECT COUNT(*) FROM associations")->fetchColumn();
@@ -20,9 +21,10 @@ try {
         $counts['adhesions_pending']  = $pdo->query("SELECT COUNT(*) FROM demandes_adhesion WHERE statut='en_attente'")->fetchColumn();
     }
 } catch (PDOException $e) {
-
+    // Table manquante = DB pas encore à jour - on affiche quand meme le panel
 }
 
+// Tuiles adaptées au rôle
 if (isAdminPanelNotesFraisOnly()) {
     $tiles = [
         ['', 'Notes de frais', '→', 'notes-frais.php'],
@@ -71,6 +73,7 @@ if (!isAdminPanelNotesFraisOnly() && isAdminPanelDelegationOnly()) {
   <div class="flash flash--ok"><?= htmlspecialchars($_GET['ok']) ?></div>
 <?php endif; ?>
 
+<!-- Tuiles compteurs -->
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--s4);margin-bottom:var(--s8)">
   <?php foreach ($tiles as [$icon, $label, $val, $link]):
     if (!adminPanelDelegationAllows($pdo, adminPanelPageKeyFromHref($link))) {
@@ -91,7 +94,8 @@ if (!isAdminPanelNotesFraisOnly() && isAdminPanelDelegationOnly()) {
 </div>
 
 <?php if (isAdminCorpo()): ?>
-    <div class="admin-card">
+  <!-- Demandes de validation en attente -->
+  <div class="admin-card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s4)">
       <h2 style="margin:0">Demandes de validation récentes</h2>
       <a href="validation.php" class="btn btn--ghost btn--sm">Voir tout →</a>
@@ -134,7 +138,8 @@ if (!isAdminPanelNotesFraisOnly() && isAdminPanelDelegationOnly()) {
     <?php endif; ?>
   </div>
 
-    <?php
+  <!-- Demandes d'adhésion en attente -->
+  <?php
   $adhTotal = (int)$pdo->query("SELECT COUNT(*) FROM demandes_adhesion WHERE statut='en_attente'")->fetchColumn();
   $adhRecentes = $pdo->query(
       "SELECT da.id, da.user_id, da.structure_type, da.structure_id, da.created_at,
@@ -188,7 +193,9 @@ if (!isAdminPanelNotesFraisOnly() && isAdminPanelDelegationOnly()) {
     </div>
   <?php endif; ?>
 
-    <div class="admin-card">
+
+  <!-- Dernières demandes de partenariat externe -->
+  <div class="admin-card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--s4)">
       <h2 style="margin:0">Dernières demandes partenariat (externe)</h2>
       <a href="demandes.php" class="btn btn--ghost btn--sm">Voir tout →</a>
@@ -216,7 +223,8 @@ if (!isAdminPanelNotesFraisOnly() && isAdminPanelDelegationOnly()) {
   </div>
 
 <?php else: ?>
-    <div class="flash flash--warn">
+  <!-- Vue Bureau : ses structures et contenu en attente de validation -->
+  <div class="flash flash--warn">
     Vous avez le rôle Bureau. Tout contenu que vous soumettez doit être validé par un Admin Corpo avant publication.
   </div>
 <?php endif; ?>

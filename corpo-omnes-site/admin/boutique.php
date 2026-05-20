@@ -18,6 +18,7 @@ if (!boutique_db_ready($pdo)) {
     exit;
 }
 
+// structures gérées (même logique que pour les events)
 if (isAdminCorpo()) {
     $assos = $pdo->query("SELECT id, nom, type, ecole FROM associations ORDER BY ecole, nom")->fetchAll(PDO::FETCH_ASSOC);
 } else {

@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * contact.php - Aide, FAQ et contacts Corpo Omnes Lyon.
+ */
 declare(strict_types=1);
 
 require_once __DIR__ . '/includes/i18n.php';

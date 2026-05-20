@@ -1,5 +1,22 @@
 <?php
-
+/**
+ * api/sumup-webhook.php
+ *
+ * Webhook SumUp : reçoit les notifications de paiement.
+ * À configurer dans le dashboard SumUp : Settings → Developers → Webhooks
+ *   URL  : https://corpoomnes.42web.io/api/sumup-webhook.php
+ *   Évts : checkout.paid, checkout.failed, checkout.canceled
+ *
+ * Avantage majeur : si la page de succès SumUp reste blanche / l'utilisateur
+ * ferme l'onglet, le billet est quand même créé côté serveur dès que SumUp
+ * confirme le paiement.
+ *
+ * Sécurité (à activer plus tard) :
+ *   - Vérifier la signature `X-Sumup-Signature` avec le secret du webhook.
+ *   - Ici, on se contente de re-vérifier le statut via l'API SumUp avant de
+ *     créer les billets, donc même sans signature, on n'est pas vulnérable
+ *     à un faux "checkout.paid" envoyé par un tiers.
+ */
 declare(strict_types=1);
 
 require_once __DIR__ . '/../includes/db.php';
@@ -18,6 +35,9 @@ if (!is_array($evt) || empty($evt['id']) && empty($evt['checkout_id']) && empty(
     exit;
 }
 
+// SumUp envoie soit { "id": "...", "event_type": "...", "payload": {...} }
+// soit { "event_type":"...", "data":{ "id":"...", "status":"PAID" } } selon la version.
+// On tente d'extraire l'id du checkout.
 $checkoutId = (string)(
     $evt['payload']['checkout_id']
     ?? $evt['data']['id']
@@ -33,6 +53,7 @@ if ($checkoutId === '') {
     exit;
 }
 
+// ── 1. Retrouve la transaction interne ────────────────────────
 $tx = $pdo->prepare("SELECT * FROM paiement_transactions WHERE provider_ref = ? LIMIT 1");
 $tx->execute([$checkoutId]);
 $transaction = $tx->fetch();
@@ -52,18 +73,21 @@ if (!$transaction) {
     exit;
 }
 
+// Déjà traitée → réponds 200 sans rien faire (idempotence)
 if (in_array($transaction['statut'], ['paye', 'echec', 'annule', 'rembourse'], true)) {
     echo json_encode(['ok' => true, 'note' => 'already processed', 'statut' => $transaction['statut']]);
     exit;
 }
 
+// ── 2. Re-vérifie le statut via l'API SumUp (ne fait confiance qu'à SumUp) ──
 $status = sumup_get_checkout_status($checkoutId);
 if ($status !== 'paid' && $status !== 'failed') {
-
+    // Statut pas encore définitif → on attend un autre webhook
     echo json_encode(['ok' => true, 'note' => 'status not final', 'status' => $status]);
     exit;
 }
 
+// ── 3. Échec → marque la transaction comme telle ──────────────
 if ($status === 'failed') {
     $pdo->prepare("UPDATE paiement_transactions SET statut='echec' WHERE id=?")
         ->execute([$transaction['id']]);
@@ -71,9 +95,10 @@ if ($status === 'failed') {
     exit;
 }
 
+// ── 4. Paiement OK → crée les billets si pas déjà fait ────────
 $pdo->beginTransaction();
 try {
-
+    // Recheck dans la transaction pour éviter une double-création (concurrence webhook/callback client)
     $check = $pdo->prepare("SELECT statut FROM paiement_transactions WHERE id=? FOR UPDATE");
     $check->execute([$transaction['id']]);
     $curStatut = (string)$check->fetchColumn();
@@ -87,33 +112,8 @@ try {
         ->execute([$transaction['id']]);
 
     $payload = json_decode((string)($transaction['payload'] ?? '{}'), true) ?: [];
-    $qte = max(1, (int)($payload['quantite'] ?? 1));
-
-    $unit = isset($payload['prix_unitaire_billet'])
-        ? (float)$payload['prix_unitaire_billet']
-        : (float)$transaction['montant'] / $qte;
-    $tarifId   = !empty($payload['tarif_id']) ? (int)$payload['tarif_id'] : null;
     $codePromo = $payload['code_promo'] ?? null;
-
-    $createdIds = [];
-    for ($i = 0; $i < $qte; $i++) {
-        $bid = billet_create(
-            $pdo,
-            (int)$transaction['evenement_id'],
-            $transaction['user_id'] ? (int)$transaction['user_id'] : null,
-            [
-                'email'  => $transaction['email'],
-                'nom'    => $payload['nom']    ?? '',
-                'prenom' => $payload['prenom'] ?? '',
-            ],
-            $unit,
-            'paye',
-            (string)$transaction['provider'],
-            $tarifId,
-            $codePromo
-        );
-        if ($bid) $createdIds[] = $bid;
-    }
+    $createdIds = billet_fulfill_from_transaction($pdo, $transaction, $payload);
 
     if ($codePromo && !empty($createdIds)) {
         $c = $pdo->prepare("SELECT id FROM codes_promo WHERE code=? AND (evenement_id=? OR evenement_id IS NULL) LIMIT 1");
@@ -129,6 +129,8 @@ try {
 
     $pdo->commit();
 
+    // Envoi du mail avec billets (PDF en pièce jointe) - hors transaction.
+    // billet_send_mail_for_ids() gère le verrou anti-doublon via le payload de tx.
     if (!empty($createdIds)) {
         try { billet_send_mail_for_ids($pdo, $createdIds, (int)$transaction['id']); }
         catch (Throwable $e) { error_log('[sumup-webhook] mail err: ' . $e->getMessage()); }

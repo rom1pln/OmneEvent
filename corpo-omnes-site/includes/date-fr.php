@@ -1,5 +1,5 @@
 <?php
-
+// utilitaires dates en format français jj/mm/aaaa
 declare(strict_types=1);
 
 function corpo_parse_date_input($raw): ?string
@@ -40,6 +40,7 @@ function corpo_date_iso_to_fr(?string $iso): string
     return $dt ? $dt->format('d/m/Y') : '';
 }
 
+// input texte jj/mm/aaaa pour éviter le datepicker US
 function corpo_render_date_input(string $name, $iso = null, array $extra = []): string
 {
     $class = 'input-date-fr';

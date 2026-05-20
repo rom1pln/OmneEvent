@@ -1,4 +1,5 @@
-
+// Bannière de consentement cookies (RGPD)
+// stocke le choix 6 mois, émet un event custom à chaque sauvegarde
 (function () {
   'use strict';
 
@@ -6,7 +7,7 @@
   const LS_KEY         = 'corpo_consent_v1';
   const SS_KEY         = 'corpo_consent_v1';
   const COOKIE_VERSION = 1;
-  const COOKIE_MAX_AGE = 60 * 60 * 24 * 180;
+  const COOKIE_MAX_AGE = 60 * 60 * 24 * 180; // 6 mois
 
   const root = document.querySelector('[data-cookie-root]');
   if (!root) return;
@@ -21,6 +22,7 @@
     return;
   }
 
+  // path=/ obligatoire sinon le cookie disparaît hors du sous-dossier courant
   const COOKIE_PATH = '/';
 
   function setCookie(name, value, maxAge) {
@@ -30,19 +32,19 @@
     if (isSecure) cookie += '; Secure';
     try {
       document.cookie = cookie;
-    } catch (e) {  }
+    } catch (e) { /* quota ou erreur navigateur, on ignore */ }
   }
 
   function setLocalStorage(json) {
     try {
       localStorage.setItem(LS_KEY, json);
-    } catch (e) {  }
+    } catch (e) { /* mode privé iOS bloque le localStorage */ }
   }
 
   function setSessionStorage(json) {
     try {
       sessionStorage.setItem(SS_KEY, json);
-    } catch (e) {  }
+    } catch (e) { /* idem pour sessionStorage */ }
   }
 
   function getLocalStorageParsed() {
@@ -65,6 +67,7 @@
     }
   }
 
+  // lecture cookie compatible Safari (séparateur ";" avec ou sans espace)
   function getCookie(name) {
     const parts = (document.cookie || '').split(';');
     for (let i = 0; i < parts.length; i++) {
@@ -93,13 +96,13 @@
       c = getSessionStorageParsed();
     }
     if (!consentVersionOk(c)) return null;
-
+    // Safari peut avoir effacé un des stockages, on re-synchronise les trois
     try {
       const json = JSON.stringify(c);
       setCookie(COOKIE_NAME, json, COOKIE_MAX_AGE);
       setLocalStorage(json);
       setSessionStorage(json);
-    } catch (e2) {  }
+    } catch (e2) { /* ignore */ }
     return c;
   }
 
@@ -145,7 +148,6 @@
       overlay.classList.add('is-open');
       modal.classList.add('is-open');
     });
-
     const firstFocus = modal.querySelector('.cc-modal__close');
     if (firstFocus) firstFocus.focus();
   }
@@ -184,6 +186,7 @@
     dispatchChange(consent);
   }
 
+  // ─── Délégation d'événements ────────────────────────────────
   root.addEventListener('click', function (e) {
     const target = e.target.closest('[data-cc-action]');
     if (!target) return;
@@ -215,11 +218,11 @@
     if (existing) {
       applyTogglesFrom(existing);
       dispatchChange(existing);
-
+      // déjà consenti → pas de bannière
     } else {
       applyTogglesFrom(null);
       showRoot();
-
+      // double rAF nécessaire sur certains mobiles pour que la transition s'applique
       requestAnimationFrame(function () {
         requestAnimationFrame(showBanner);
       });

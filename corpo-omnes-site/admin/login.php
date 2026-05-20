@@ -1,10 +1,12 @@
 <?php
 declare(strict_types=1);
+// page de connexion - gestion des tentatives, CSRF et langue
 
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/i18n.php';
 
+// changement de langue via cookie avant de rediriger
 if (isset($_GET['lang'])) {
     $lng = (string)$_GET['lang'];
     if (in_array($lng, CORPO_LANG_ALLOWED, true)) {
@@ -61,7 +63,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (isset($_SESSION['redirect_after_login'])) {
                     $redirect = (string)$_SESSION['redirect_after_login'];
                     unset($_SESSION['redirect_after_login']);
-
+                    // Les liens publics (evenement.php, etc.) sont relatifs à la racine du site ;
+                    // depuis admin/, il faut remonter d'un cran sinon le navigateur résout admin/evenement.php.
                     if ($redirect !== ''
                         && !preg_match('#^[a-z][a-z0-9+.-]*://#i', $redirect)
                         && ($redirect[0] ?? '') !== '/'

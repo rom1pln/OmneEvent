@@ -1,24 +1,13 @@
 <?php
-/**
- * includes/upload-logo.php
- *
- * Usage :
- *   require_once __DIR__ . '/upload-logo.php';
- *   $logo = uploadLogo('assos', 'logo_file', 'logo_url', $existingPath);
- *
- * @param string      $prefix    Sous-dossier dans images/logos/ (assos | sports | partenaires)
- * @param string      $fileField Nom du champ <input type="file"> (default: logo_file)
- * @param string      $urlField  Nom du champ <input type="text"> URL fallback (default: logo_url)
- * @param string|null $current   Valeur existante (conservée si rien de nouveau)
- * @return string|null           Chemin relatif depuis la racine du site, ou null
- */
+// gère l'upload de logo (file ou URL), garde l'existant si rien de nouveau
 function uploadLogo(
     string $prefix,
     string $fileField = 'logo_file',
     string $urlField  = 'logo_url',
     ?string $current  = null,
-    int $maxBytes = 2 * 1024 * 1024
+    int $maxBytes = 2097152
 ): ?string {
+    // fichier uploadé
     if (
         !empty($_FILES[$fileField]['tmp_name']) &&
         $_FILES[$fileField]['error'] === UPLOAD_ERR_OK
@@ -43,10 +32,12 @@ function uploadLogo(
         }
     }
 
+    // URL saisie manuellement
     $url = trim($_POST[$urlField] ?? '');
     if ($url) {
         return $url;
     }
 
+    // rien de nouveau → on garde l'existant
     return $current;
 }

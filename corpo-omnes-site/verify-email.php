@@ -1,5 +1,8 @@
 <?php
-
+/**
+ * verify-email.php — Activation de compte via lien reçu par mail.
+ * Page autonome (db.php seulement) pour limiter les erreurs fatales sur hébergement mutualisé.
+ */
 $verifyLog = static function (string $msg): void {
     $file = __DIR__ . '/logs/verify-email.log';
     $dir  = dirname($file);
@@ -56,6 +59,7 @@ if (!isset($pdo) || !$pdo instanceof PDO) {
     exit('Configuration base de données invalide.');
 }
 
+/** @return array<string,mixed>|null */
 $lookupVerificationToken = static function (PDO $pdo, string $tokenHash): ?array {
     if (strlen($tokenHash) !== 64) {
         return null;

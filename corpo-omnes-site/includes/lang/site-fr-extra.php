@@ -76,7 +76,14 @@ return [
     'evt.cta_assos' => 'Voir les associations',
     'evt.flash_ok' => 'Inscription confirmée !',
     'evt.flash_wait' => 'Tu es sur liste d\'attente.',
+    'evt.flash_wait_pos' => 'Tu es sur liste d\'attente (position #%d).',
+    'evt.flash_already' => 'Tu es déjà inscrit·e à cet événement.',
+    'evt.flash_err' => 'Impossible de finaliser l\'inscription.',
     'evt.flash_out' => 'Désinscription effectuée.',
+    'evt.btn_join_waitlist' => 'Rejoindre la liste d\'attente',
+    'evt.waitlist_auto' => 'Tu seras inscrit·e automatiquement si une place se libère.',
+    'evt.waitlist_help' => 'Aucun paiement maintenant. En cas de désistement, les places sont attribuées dans l\'ordre d\'arrivée.',
+    'evt.waitlist_promoted_pay' => 'Une place s\'est libérée pour toi — finalise le paiement pour recevoir ton billet.',
     'evt.registered' => '✓ Inscrit(e)',
     'evt.waitlist_badge' => '⌛ Liste d\'attente',
     'evt.empty_upcoming' => 'Aucun événement à venir pour le moment.',
@@ -288,6 +295,7 @@ return [
     'apr.cta_insta' => 'Suivre sur Instagram',
     'apr.btn_guide' => 'Guide du site',
 
+    /* ─── Guide du site (sous-page La Corpo) ─────────────────── */
     'guide.meta_title' => 'Le site et ses fonctionnalités',
     'guide.crumb' => 'Guide du site',
     'guide.hero_h1' => 'Comment utiliser ce site',
@@ -331,11 +339,13 @@ return [
     'guide.cta_btn_shop' => 'Ouvrir la boutique',
     'guide.cta_btn_corpo' => 'Découvrir la Corpo',
 
+    /* ─── Communs ───────────────────────────────────────────── */
     'common.back_to_events' => '← Retour aux événements',
     'common.back'           => '← Retour',
     'common.add_to_calendar'      => 'Ajouter à mon agenda',
     'common.add_to_calendar_sub'  => 'Reçois un rappel avant l\'événement',
 
+    /* ─── Pages légales ─────────────────────────────────────── */
     'legal.crumb'           => 'Informations légales',
     'legal.updated_on'      => 'Dernière mise à jour',
     'legal.toc_title'       => 'Sommaire',
@@ -359,6 +369,7 @@ return [
     'legal.cgu.meta_title'      => 'Conditions Générales d\'Utilisation',
     'legal.cgu.hero_sub'        => 'Règles d\'usage du site et des services Corpo Omnes Lyon - droits, devoirs et responsabilités des utilisateurs.',
 
+    /* ─── Bannière / modale de consentement cookies ─────────── */
     'cookies.banner.title'      => 'On respecte ta vie privée',
     'cookies.banner.text'       => 'Ce site utilise des cookies pour assurer son bon fonctionnement, mesurer son audience et te proposer une expérience adaptée. Tu peux accepter, refuser ou personnaliser tes préférences à tout moment.',
     'cookies.banner.accept_all' => 'Tout accepter',

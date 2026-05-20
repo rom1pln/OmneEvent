@@ -1,4 +1,4 @@
-
+// Filtres + vues (liste/calendrier) pour la page événements
 
 (function () {
   'use strict';
@@ -9,7 +9,7 @@
       if (el && el.textContent) {
         return JSON.parse(el.textContent);
       }
-    } catch (e) {  }
+    } catch (e) { /* ignore */ }
     return {};
   }
   var L = parseI18n();
@@ -69,7 +69,7 @@
     var visibleCards = [];
 
     cards.forEach(function (c) {
-
+      // événements passés : on filtre juste sur recherche + type
       if (c.classList.contains('evt-card--past')) {
         var okPastSearch = !state.search ||
           (c.dataset.evtSearch || '').indexOf(state.search) !== -1;
@@ -110,6 +110,7 @@
 
     sortCards(visibleCards);
 
+    // on cache les groupes mois qui n'ont plus rien à afficher
     document.querySelectorAll('.evt-month-group').forEach(function (g) {
       var hasVisible = g.querySelectorAll('.evt-filterable:not(.is-hidden)').length > 0;
       g.style.display = hasVisible ? '' : 'none';
@@ -136,6 +137,7 @@
     });
   }
 
+  // affiche les chips de filtres actifs avec un bouton pour les supprimer
   function renderActive() {
     var items = [];
     if (state.search) items.push({ k: 'search', label: '« ' + state.search + ' »' });
@@ -253,6 +255,7 @@
     b.addEventListener('click', resetAll);
   });
 
+  // boutons liste / calendrier
   var viewBtns = document.querySelectorAll('.evt-view-btn');
   viewBtns.forEach(function (b) {
     b.addEventListener('click', function () {
@@ -265,7 +268,7 @@
     });
   });
 
-  // Hash → activer la vue calendrier directement
+  // si l'URL pointe directement sur le calendrier
   if (location.hash === '#evt-view-calendar') {
     var calBtn = document.querySelector('.evt-view-btn[data-view="calendar"]');
     if (calBtn) calBtn.click();

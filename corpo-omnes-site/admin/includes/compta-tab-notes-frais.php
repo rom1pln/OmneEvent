@@ -1,5 +1,5 @@
 <?php
-
+// onglet notes de frais, inclus depuis admin/comptabilite.php
 $nfPending = nf_count_pending($pdo, $selType, $selId);
 $nfFilter  = $_GET['nf_statut'] ?? '';
 $nfFilterAllowed = ['soumise', 'approuvee_bureau', 'remboursee', 'refusee', ''];
@@ -98,7 +98,7 @@ $nfDual = nf_dual_validation_ready($pdo);
             <td data-label="PDF">
               <a href="api/note-frais-pdf.php?id=<?= (int)$n['id'] ?>" target="_blank" rel="noopener">PDF</a>
               <?php if (!empty($n['compta_transaction_id'])): ?>
-                <br><a href="?type=<?= urlencode($selType) ?>&id=<?= $selId ?>&tab=transactions&q=%23<?= (int)$n['compta_transaction_id'] ?>" class="btn btn--ghost btn--sm" style="margin-top:.25rem;font-size:.7rem">Écriture</a>
+                <br><a href="?type=<?= urlencode($selType) ?>&id=<?= $selId ?>&tab=transactions&q=%23<?= (int)$n['compta_transaction_id'] ?>" class="btn btn--ghost btn--sm" style="margin-top:.25rem;font-size:.7rem">Écriture #<?= (int)$n['compta_transaction_id'] ?></a>
               <?php endif; ?>
             </td>
             <td data-label="Actions">

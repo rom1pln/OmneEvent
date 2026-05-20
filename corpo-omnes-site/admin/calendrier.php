@@ -6,6 +6,7 @@ require_once 'includes/admin-header.php';
 
 $flash = '';
 
+// listes de référence (écoles, types, couleurs)
 $ECOLES_ALL = ['ECE','ESCE','HEIP','INSEEC Bachelor','INSEEC BBA','INSEEC BTS','INSEEC GE','INSEEC MSc','Sup de Pub'];
 $TYPES      = ['vacances','examens','rattrapages','rentree','evenement_academique','autre'];
 $TYPES_LABELS = [
@@ -25,11 +26,14 @@ $TYPE_COLORS = [
     'autre'               => '#888',
 ];
 
+/* Promotions suggérées (chips cliquables dans le formulaire) */
 $PROMOS_SUGGESTIONS = ['B1','B2','B3','M1','M2','1A','2A','3A','4A','5A','BTS1','BTS2','Prépa'];
 
+// permissions
 $canEditCalendrier = canManageCalendrier($pdo);
 $ecolesGerables    = $canEditCalendrier ? getEcolesCalendrier($pdo, $ECOLES_ALL) : [];
 
+// nettoie la liste de promos saisies
 function _normalizePromos(?string $raw): array {
     if (!$raw) return [];
     $parts = preg_split('/[,;]+/u', $raw) ?: [];
@@ -37,14 +41,15 @@ function _normalizePromos(?string $raw): array {
     foreach ($parts as $p) {
         $p = trim($p);
         if ($p === '' || mb_strtolower($p) === 'toutes') continue;
-
+        // borne la longueur pour éviter les abus
         $out[] = mb_substr($p, 0, 20);
     }
-
+    // unique, max 30 promos
     $out = array_values(array_unique($out));
     return array_slice($out, 0, 30);
 }
 
+// actions POST (BDE, fédérations et admin corpo seulement)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$canEditCalendrier) {
         $flash = '<div class="flash flash--err">Seuls les BDE et les Fédérations peuvent gérer le calendrier scolaire.</div>';
@@ -112,8 +117,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// lecture - tout le monde peut voir le calendrier
 $entries = $pdo->query("SELECT * FROM calendrier_scolaire ORDER BY date_debut ASC")->fetchAll();
 
+/* Prépare le payload JSON pour le calendrier interactif (côté JS) */
 $jsEntries = [];
 $promosFromEntries = [];
 foreach ($entries as &$en) {
@@ -140,13 +147,14 @@ foreach ($entries as &$en) {
 }
 unset($en);
 
+/* Liste agrégée des promos disponibles (suggestions + existantes en base + users) */
 try {
     $stmt = $pdo->query("SELECT DISTINCT promotion FROM users WHERE promotion IS NOT NULL AND promotion <> ''");
     foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $p) {
         $p = trim((string)$p);
         if ($p !== '') $promosFromEntries[$p] = true;
     }
-} catch (Throwable $e) {  }
+} catch (Throwable $e) { /* ignore */ }
 
 $promosFilter = array_merge($PROMOS_SUGGESTIONS, array_keys($promosFromEntries));
 $promosFilter = array_values(array_unique(array_map('strval', $promosFilter)));
@@ -168,6 +176,7 @@ sort($promosFilter, SORT_NATURAL | SORT_FLAG_CASE);
 
 <?= $flash ?>
 
+<!-- =================== CALENDRIER INTERACTIF =================== -->
 <div class="admin-card adcal-card">
   <div class="adcal-toolbar">
     <div class="adcal-nav">
@@ -227,6 +236,7 @@ sort($promosFilter, SORT_NATURAL | SORT_FLAG_CASE);
   </div>
 </div>
 
+<!-- Détail du jour (panneau qui s'ouvre au clic) -->
 <div class="adcal-day-detail admin-card" id="cal-day-detail" hidden>
   <div class="adcal-day-detail__head">
     <h2 id="cal-day-detail-title"></h2>
@@ -236,7 +246,7 @@ sort($promosFilter, SORT_NATURAL | SORT_FLAG_CASE);
 </div>
 
 <?php if ($canEditCalendrier && !empty($ecolesGerables)): ?>
-
+<!-- =================== FORMULAIRE AJOUT =================== -->
 <div class="admin-card">
   <h2>Ajouter une période</h2>
   <form method="post" class="admin-form" id="cal-add-form">
@@ -286,12 +296,14 @@ sort($promosFilter, SORT_NATURAL | SORT_FLAG_CASE);
 </div>
 <?php endif; ?>
 
+<!-- Datalist commun (suggestions de promos) -->
 <datalist id="cal-promos-datalist">
   <?php foreach ($promosFilter as $p): ?>
     <option value="<?= htmlspecialchars($p) ?>">
   <?php endforeach; ?>
 </datalist>
 
+<!-- =================== TABLEAU LISTE =================== -->
 <div class="admin-card" style="padding:0;overflow:hidden">
   <table class="admin-table">
     <thead>
@@ -408,7 +420,7 @@ sort($promosFilter, SORT_NATURAL | SORT_FLAG_CASE);
 ], JSON_UNESCAPED_UNICODE) ?></script>
 
 <script>
-
+// affiche/masque la ligne d'édition inline d'un événement
 function toggleEdit(id) {
   const row = document.getElementById('edit-' + id);
   if (!row) return;
@@ -418,6 +430,7 @@ function toggleEdit(id) {
   if (isHidden) row.scrollIntoView({ behavior:'smooth', block:'nearest' });
 }
 
+// chips de promo : clic pour ajouter/retirer dans le champ texte
 document.querySelectorAll('[data-promo-chips]').forEach(box => {
   const input = box.parentElement.querySelector('[data-promo-input]');
   if (!input) return;
@@ -448,6 +461,7 @@ document.querySelectorAll('[data-promo-chips]').forEach(box => {
   syncChips();
 });
 
+// calendrier interactif (navigation mois / affichage événements)
 (function () {
   const dataEl = document.getElementById('cal-data');
   if (!dataEl) return;
@@ -485,7 +499,7 @@ document.querySelectorAll('[data-promo-chips]').forEach(box => {
     if (fe && e.ecole !== fe) return false;
     if (ft && e.type !== ft) return false;
     if (fp) {
-
+      // Si l'événement n'a pas de promo listée → considère qu'il s'applique à toutes
       if (e.promotions && e.promotions.length > 0) {
         const has = e.promotions.some(p => p.toLowerCase() === fp.toLowerCase());
         if (!has) return false;
@@ -506,11 +520,13 @@ document.querySelectorAll('[data-promo-chips]').forEach(box => {
     const y = cursor.getFullYear(), m = cursor.getMonth();
     titleEl.textContent = `${MONTHS[m]} ${y}`;
 
+    // Premier jour de la semaine (lundi=0)
     const first = new Date(y, m, 1);
     let startDow = (first.getDay() + 6) % 7;
     const daysInMonth = new Date(y, m + 1, 0).getDate();
     const daysInPrev  = new Date(y, m, 0).getDate();
 
+    // Construit 6 semaines * 7 jours = 42 cellules
     const cells = [];
     for (let i = 0; i < startDow; i++) {
       cells.push({ date: new Date(y, m - 1, daysInPrev - startDow + 1 + i), other: true });

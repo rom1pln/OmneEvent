@@ -3,46 +3,40 @@ require_once 'includes/i18n.php';
 $title = corpo_t('index.meta_title');
 $page  = 'index';
 require_once 'includes/db.php';
-require_once 'includes/auth.php';
-require_once 'includes/billetterie.php';
-$userIdHome = isLoggedIn() ? (int)$_SESSION['user_id'] : 0;
 require_once 'includes/header.php';
 
+// données pour la homepage
 $nbBde       = $pdo->query("SELECT COUNT(*) FROM associations WHERE type='BDE'")->fetchColumn();
 $nbAssos     = $pdo->query("SELECT COUNT(*) FROM associations")->fetchColumn();
 $nbPartenaires = $pdo->query("SELECT COUNT(*) FROM partenaires WHERE statut='publie'")->fetchColumn();
 $nbSports    = $pdo->query("SELECT COUNT(*) FROM sports")->fetchColumn();
 
-$upcomingEvts = array_values(array_filter(
-    $pdo->query(
-        "SELECT * FROM evenements WHERE statut='publie' AND date >= CURDATE() ORDER BY date ASC LIMIT 12"
-    )->fetchAll(),
-    static fn(array $ev): bool => evt_user_can_see_event($pdo, $ev, $userIdHome ?: null)
-));
-$upcomingEvts = array_slice($upcomingEvts, 0, 4);
-$nextEvent = $upcomingEvts[0] ?? null;
-if (!$nextEvent) {
-    $nextEvent = null;
-    foreach ($pdo->query("SELECT * FROM evenements WHERE statut='publie' AND date >= CURDATE() ORDER BY date ASC LIMIT 20")->fetchAll() as $cand) {
-        if (evt_user_can_see_event($pdo, $cand, $userIdHome ?: null)) {
-            $nextEvent = $cand;
-            break;
-        }
-    }
-}
+// Prochain événement à venir
+$nextEvent   = $pdo->query(
+    "SELECT * FROM evenements WHERE statut='publie' AND date >= CURDATE() ORDER BY date ASC LIMIT 1"
+)->fetch();
 
+// 3 événements après (ou tous si peu)
+$upcomingEvts = $pdo->query(
+    "SELECT * FROM evenements WHERE statut='publie' AND date >= CURDATE() ORDER BY date ASC LIMIT 4"
+)->fetchAll();
+
+// Sports clubs
 $sports = $pdo->query("SELECT * FROM sports WHERE categorie='club' ORDER BY id LIMIT 4")->fetchAll();
 
+// Derniers résultats sportifs
 $resultats = $pdo->query(
     "SELECT r.*, s.nom AS sport_nom, s.icon AS sport_icon, s.couleur
      FROM sport_resultats r JOIN sports s ON s.id = r.sport_id
      ORDER BY r.date DESC LIMIT 3"
 )->fetchAll();
 
+// Quelques partenaires mis en avant
 $featuredPt = $pdo->query(
     "SELECT * FROM partenaires WHERE statut='publie' ORDER BY id LIMIT 4"
 )->fetchAll();
 
+// Dernières actualités publiées
 $actus = $pdo->query(
     "SELECT * FROM actualites WHERE statut='publie' AND IFNULL(visibilite,'public')='public' ORDER BY created_at DESC LIMIT 3"
 )->fetchAll();
@@ -52,6 +46,7 @@ $monthNames = corpo_month_names_full();
 
 <main>
 
+  <!-- HERO -->
   <section class="hero" aria-labelledby="hero-title">
     <div class="hero__content container">
       <span class="hero__eyebrow"><?= htmlspecialchars(corpo_t('index.hero_eyebrow')) ?></span>
@@ -70,6 +65,7 @@ $monthNames = corpo_month_names_full();
     </div>
   </section>
 
+  <!-- STATS -->
   <div class="stats-band" role="region" aria-label="<?= htmlspecialchars(corpo_t('index.stats_aria')) ?>">
     <div class="container">
       <div class="stat-item"><span class="stat-item__value">6 000+</span><span class="stat-item__label"><?= htmlspecialchars(corpo_t('index.stat_students')) ?></span></div>
@@ -82,6 +78,7 @@ $monthNames = corpo_month_names_full();
     </div>
   </div>
 
+  <!-- prochain événement -->
   <?php if ($nextEvent): $evtDt = new DateTime($nextEvent['date']); ?>
   <section class="section home-evt-section">
     <div class="container">
@@ -94,7 +91,8 @@ $monthNames = corpo_month_names_full();
       </div>
 
       <div class="home-evt-feature">
-                <article class="home-evt-main">
+        <!-- Grande carte événement -->
+        <article class="home-evt-main">
           <div class="home-evt-main__date">
             <span class="home-evt-main__day"><?= $evtDt->format('d') ?></span>
             <span class="home-evt-main__month"><?= $monthNames[(int)$evtDt->format('n')] ?></span>
@@ -131,7 +129,8 @@ $monthNames = corpo_month_names_full();
           </div>
         </article>
 
-                <?php if (count($upcomingEvts) > 1): ?>
+        <!-- Liste des events suivants -->
+        <?php if (count($upcomingEvts) > 1): ?>
         <div class="home-evt-list">
           <?php foreach (array_slice($upcomingEvts, 1) as $ev):
             $dt = new DateTime($ev['date']);
@@ -157,6 +156,7 @@ $monthNames = corpo_month_names_full();
   </section>
   <?php endif; ?>
 
+  <!-- sports -->
   <section class="section section--alt home-sports-section">
     <div class="container">
       <div class="home-section-header">
@@ -195,7 +195,8 @@ $monthNames = corpo_month_names_full();
         <?php endforeach; ?>
       </div>
 
-            <?php if (!empty($resultats)): ?>
+      <!-- Derniers résultats en petite bande -->
+      <?php if (!empty($resultats)): ?>
         <div class="home-results-strip">
           <span class="home-results-strip__label"><?= htmlspecialchars(corpo_t('index.results_label')) ?></span>
           <?php foreach ($resultats as $r):
@@ -212,6 +213,7 @@ $monthNames = corpo_month_names_full();
     </div>
   </section>
 
+  <!-- campus -->
   <section class="section" aria-labelledby="campus-title">
     <div class="container">
       <span class="section-label"><?= htmlspecialchars(corpo_t('index.infra_label')) ?></span>
@@ -247,6 +249,7 @@ $monthNames = corpo_month_names_full();
     </div>
   </section>
 
+  <!-- partenaires -->
   <?php if (!empty($featuredPt)): ?>
   <section class="section home-partners-section">
     <div class="container">
@@ -296,6 +299,7 @@ $monthNames = corpo_month_names_full();
   </section>
   <?php endif; ?>
 
+  <!-- actus -->
   <?php if (!empty($actus)): ?>
   <section class="section section--alt home-actus-section">
     <div class="container">
@@ -321,6 +325,7 @@ $monthNames = corpo_month_names_full();
   </section>
   <?php endif; ?>
 
+  <!-- écoles -->
   <section class="section <?= empty($actus) ? 'section--alt' : '' ?>" aria-labelledby="ecoles-title">
     <div class="container">
       <span class="section-label"><?= htmlspecialchars(corpo_t('index.community_label')) ?></span>
@@ -336,6 +341,7 @@ $monthNames = corpo_month_names_full();
     </div>
   </section>
 
+  <!-- CTA final -->
   <section class="cta-section">
     <div class="container">
       <h2 class="cta-section__title"><?= htmlspecialchars(corpo_t('index.cta_title')) ?></h2>
@@ -347,7 +353,8 @@ $monthNames = corpo_month_names_full();
     </div>
   </section>
 
-    <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="<?= htmlspecialchars(corpo_t('index.lightbox')) ?>" hidden>
+  <!-- Lightbox (gardé pour compatibilité) -->
+  <div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="<?= htmlspecialchars(corpo_t('index.lightbox')) ?>" hidden>
     <button class="lightbox__close" aria-label="<?= htmlspecialchars(corpo_t('index.lightbox_close')) ?>">&times;</button>
     <img src="" alt="" class="lightbox__img">
   </div>

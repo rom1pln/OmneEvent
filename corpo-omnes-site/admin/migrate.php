@@ -4,11 +4,15 @@ $adminPage  = 'migrate';
 require_once '../includes/db.php';
 require_once 'includes/admin-header.php';
 
+// accès réservé au super admin uniquement
 if (!isSuperAdmin()) {
     echo '<div class="flash flash--err">Accès réservé au Super Administrateur.</div>';
     require_once 'includes/admin-footer.php';
     exit;
 }
+
+// helpers pour vérifier l'état du schéma BDD
+$GLOBALS['corpo_migrate_schema_error'] = null;
 
 function dbHasColumn(PDO $pdo, string $table, string $col): bool {
     try {
@@ -19,7 +23,10 @@ function dbHasColumn(PDO $pdo, string $table, string $col): bool {
                               LIMIT 1");
         $st->execute([$table, $col]);
         return (bool)$st->fetchColumn();
-    } catch (Throwable $e) { return false; }
+    } catch (Throwable $e) {
+        $GLOBALS['corpo_migrate_schema_error'] = $e->getMessage();
+        return false;
+    }
 }
 function dbHasTable(PDO $pdo, string $table): bool {
     try {
@@ -39,8 +46,20 @@ function dbColumnType(PDO $pdo, string $table, string $col): ?string {
     } catch (Throwable $e) { return null; }
 }
 
+// extrait la longueur depuis varchar(10) → 10
+function dbColumnVarcharLength(PDO $pdo, string $table, string $col): ?int
+{
+    $type = strtolower(dbColumnType($pdo, $table, $col) ?: '');
+    if (preg_match('/varchar\((\d+)\)/', $type, $m)) {
+        return (int)$m[1];
+    }
+    return null;
+}
+
+// migrations à appliquer (toutes idempotentes, peuvent être rejouées sans problème)
 $migrations = [];
 
+// ── Calendrier : promotions
 if (!dbHasColumn($pdo, 'calendrier_scolaire', 'promotions')) {
     $migrations[] = [
         'id'   => 'cal_promotions',
@@ -51,6 +70,7 @@ if (!dbHasColumn($pdo, 'calendrier_scolaire', 'promotions')) {
     ];
 }
 
+// ── Événements : champs billetterie
 $missingEvtCols = [];
 $evtCols = [
     'email_contact'              => "ADD COLUMN email_contact VARCHAR(150) DEFAULT NULL COMMENT 'Email de réception (mode email)'",
@@ -74,39 +94,34 @@ if ($missingEvtCols) {
     ];
 }
 
-$iconType = dbColumnType($pdo, 'evenements', 'icon') ?: '';
-if ($iconType && preg_match('/varchar\((\d+)\)/i', $iconType, $m) && (int)$m[1] < 32) {
-    $migrations[] = [
-        'id'   => 'evt_icon_utf8',
-        'desc' => 'evenements - élargir la colonne icon pour les emojis (VARCHAR 32)',
-        'sql'  => "ALTER TABLE evenements MODIFY COLUMN icon VARCHAR(32) DEFAULT NULL",
-    ];
-}
-
+// ── Événements : bannière + icône emoji (UTF-8)
 if (!dbHasColumn($pdo, 'evenements', 'banniere')) {
     $migrations[] = [
-        'id'   => 'evt_banniere_col',
-        'desc' => 'evenements - bannière image (chemin ou URL)',
-        'sql'  => "ALTER TABLE evenements ADD COLUMN banniere VARCHAR(255) DEFAULT NULL COMMENT 'Image bannière (chemin relatif ou URL)' AFTER icon",
+        'id'   => 'evt_banniere',
+        'desc' => 'evenements - colonne banniere (image)',
+        'sql'  => "ALTER TABLE evenements
+                   ADD COLUMN banniere VARCHAR(255) DEFAULT NULL
+                   COMMENT 'Image bannière (chemin relatif ou URL)'",
     ];
 }
-
-if (!dbHasColumn($pdo, 'evenements', 'visibilite')) {
+if (!dbHasColumn($pdo, 'evenements', 'icon')) {
     $migrations[] = [
-        'id'   => 'evt_visibilite_col',
-        'desc' => 'evenements - visibilité public | membres',
-        'sql'  => "ALTER TABLE evenements ADD COLUMN visibilite ENUM('public','membres') NOT NULL DEFAULT 'public' COMMENT 'public=agenda général ; membres=réservé structure' AFTER banniere",
+        'id'   => 'evt_icon_col',
+        'desc' => 'evenements - ajouter colonne icon (emoji / icône)',
+        'sql'  => 'ALTER TABLE evenements ADD COLUMN `icon` VARCHAR(32) DEFAULT NULL',
     ];
+} else {
+    $iconLen = dbColumnVarcharLength($pdo, 'evenements', 'icon');
+    if ($iconLen !== null && $iconLen < 32) {
+        $migrations[] = [
+            'id'   => 'evt_icon_utf8',
+            'desc' => 'evenements - élargir icon VARCHAR(32) pour emojis',
+            'sql'  => 'ALTER TABLE evenements MODIFY COLUMN `icon` VARCHAR(32) DEFAULT NULL',
+        ];
+    }
 }
 
-if (!dbHasColumn($pdo, 'evenements', 'inscription_membres')) {
-    $migrations[] = [
-        'id'   => 'evt_inscription_membres_col',
-        'desc' => 'evenements - inscription réservée aux membres/adhérents de la structure',
-        'sql'  => "ALTER TABLE evenements ADD COLUMN inscription_membres TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1=inscription membres structure uniquement' AFTER visibilite",
-    ];
-}
-
+// ── Événements : ENUM mode_inscription élargi (5 modes finaux + legacy)
 $modeType = dbColumnType($pdo, 'evenements', 'mode_inscription') ?: '';
 if (!str_contains($modeType, 'connexion') || !str_contains($modeType, 'billetterie_email')) {
     $migrations[] = [
@@ -118,6 +133,7 @@ if (!str_contains($modeType, 'connexion') || !str_contains($modeType, 'billetter
     ];
 }
 
+// ── Migration des anciennes valeurs vers les nouvelles
 try {
     $cntInterne = (int)$pdo->query("SELECT COUNT(*) FROM evenements WHERE mode_inscription='interne'")->fetchColumn();
     $cntBillet  = (int)$pdo->query("SELECT COUNT(*) FROM evenements WHERE mode_inscription='billetterie'")->fetchColumn();
@@ -131,6 +147,7 @@ if ($cntInterne > 0 || $cntBillet > 0) {
     ];
 }
 
+// ── structure_membres : ajouter le niveau « adherent » (participants non gestionnaires)
 $roleType = dbColumnType($pdo, 'structure_membres', 'role_in_struct') ?: '';
 if ($roleType !== '' && !str_contains($roleType, 'adherent')) {
     $migrations[] = [
@@ -142,6 +159,7 @@ if ($roleType !== '' && !str_contains($roleType, 'adherent')) {
     ];
 }
 
+// ── inscriptions_evenement : ENUM statut élargi
 $statutType = dbColumnType($pdo, 'inscriptions_evenement', 'statut') ?: '';
 if (!str_contains($statutType, 'annule') || !str_contains($statutType, 'rembourse')) {
     $migrations[] = [
@@ -153,6 +171,7 @@ if (!str_contains($statutType, 'annule') || !str_contains($statutType, 'rembours
     ];
 }
 
+// ── inscriptions_evenement : colonnes billetterie
 $missingInsCols = [];
 $insCols = [
     'qr_token'           => "ADD COLUMN qr_token VARCHAR(64) DEFAULT NULL",
@@ -180,6 +199,7 @@ if ($missingInsCols) {
     ];
 }
 
+// ── Index UNIQUE sur qr_token (après la colonne)
 if (dbHasColumn($pdo, 'inscriptions_evenement', 'qr_token')) {
     try {
         $idx = $pdo->prepare("SELECT 1 FROM information_schema.STATISTICS
@@ -197,6 +217,7 @@ if (dbHasColumn($pdo, 'inscriptions_evenement', 'qr_token')) {
     } catch (Throwable $e) {}
 }
 
+// ── DROP UNIQUE (user_id, evenement_id) : empêchait les multi-billets
 try {
     $oldUniq = $pdo->prepare("SELECT 1 FROM information_schema.STATISTICS
                                WHERE TABLE_SCHEMA=DATABASE()
@@ -212,6 +233,7 @@ try {
     }
 } catch (Throwable $e) {}
 
+// ── user_id nullable (achats invités)
 try {
     $st = $pdo->prepare("SELECT IS_NULLABLE FROM information_schema.COLUMNS
                           WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='inscriptions_evenement'
@@ -227,6 +249,7 @@ try {
     }
 } catch (Throwable $e) {}
 
+// ── evenements : ouvert_externes (autorise les non-étudiants pour les modes email / billetterie_email)
 if (!dbHasColumn($pdo, 'evenements', 'ouvert_externes')) {
     $migrations[] = [
         'id'   => 'evt_ouvert_externes',
@@ -236,6 +259,7 @@ if (!dbHasColumn($pdo, 'evenements', 'ouvert_externes')) {
     ];
 }
 
+// ── Tables tarifs / codes_promo
 if (!dbHasTable($pdo, 'evenement_tarifs')) {
     $migrations[] = [
         'id'   => 'tbl_evenement_tarifs',
@@ -281,6 +305,7 @@ if (!dbHasTable($pdo, 'codes_promo')) {
     ];
 }
 
+// ── evenement_tarifs : flag frais à charge du client (par tarif)
 if (dbHasTable($pdo, 'evenement_tarifs') && !dbHasColumn($pdo, 'evenement_tarifs', 'frais_a_charge_client')) {
     $migrations[] = [
         'id'   => 'tarif_frais_client',
@@ -291,6 +316,7 @@ if (dbHasTable($pdo, 'evenement_tarifs') && !dbHasColumn($pdo, 'evenement_tarifs
     ];
 }
 
+// ── inscriptions_evenement : ajouter tarif_id + code_promo_utilise
 if (dbHasTable($pdo, 'evenement_tarifs') && !dbHasColumn($pdo, 'inscriptions_evenement', 'tarif_id')) {
     $migrations[] = [
         'id'   => 'insc_tarif_id',
@@ -310,6 +336,7 @@ if (!dbHasColumn($pdo, 'inscriptions_evenement', 'code_promo_utilise')) {
     ];
 }
 
+// ── Tables manquantes
 if (!dbHasTable($pdo, 'demandes_renseignement_evenement')) {
     $migrations[] = [
         'id'   => 'tbl_demandes_renseignement',
@@ -351,6 +378,7 @@ if (!dbHasTable($pdo, 'paiement_transactions')) {
     ];
 }
 
+// ── Associations : ecoles_eligibles JSON (filtre des écoles autorisées à rejoindre)
 if (!dbHasColumn($pdo, 'associations', 'ecoles_eligibles')) {
     $migrations[] = [
         'id'   => 'assos_ecoles_eligibles',
@@ -361,6 +389,7 @@ if (!dbHasColumn($pdo, 'associations', 'ecoles_eligibles')) {
     ];
 }
 
+// ── Associations : parent_bde_id (hiérarchie Corpo → BDE → assos)
 if (!dbHasColumn($pdo, 'associations', 'parent_bde_id')) {
     $migrations[] = [
         'id'   => 'assos_parent_bde_id',
@@ -371,8 +400,13 @@ if (!dbHasColumn($pdo, 'associations', 'parent_bde_id')) {
     ];
 }
 
+// ── Associations : rattacher les assos orphelines à leur BDE/Fédération école.
+// Important : on rattache TOUT ce qui n'est pas BDE/BDS/Corpo/Fédération
+// (donc Association, Junior comme JEECE, Club, etc.). Les fédérations
+// restent autonomes (parent_bde_id = NULL). On ne touche que les assos
+// dont parent_bde_id est encore NULL pour ne pas écraser les manips manuelles.
 if (dbHasColumn($pdo, 'associations', 'parent_bde_id')) {
-
+    // Détecte combien d'assos sont encore "orphelines" pour proposer la migration
     try {
         $nbOrphans = (int)$pdo->query(
             "SELECT COUNT(*) FROM associations a
@@ -416,6 +450,7 @@ UPDATE associations a
     }
 }
 
+// ── EchoFed : ne doit jamais avoir de parent (fédération autonome, pas « fille » de la Corpo)
 if (dbHasColumn($pdo, 'associations', 'parent_bde_id')) {
     try {
         $pid = $pdo->query("SELECT parent_bde_id FROM associations WHERE slug = 'echofed' LIMIT 1")->fetchColumn();
@@ -426,9 +461,10 @@ if (dbHasColumn($pdo, 'associations', 'parent_bde_id')) {
                 'sql'  => "UPDATE associations SET parent_bde_id = NULL WHERE slug = 'echofed'",
             ];
         }
-    } catch (Throwable $e) {  }
+    } catch (Throwable $e) { /* ignore */ }
 }
 
+// ── structure_membres : rôles fonctionnels cumulables
 if (dbHasTable($pdo, 'structure_membres') && !dbHasColumn($pdo, 'structure_membres', 'resp_evenement')) {
     $migrations[] = [
         'id'   => 'sm_resp_roles',
@@ -441,6 +477,7 @@ if (dbHasTable($pdo, 'structure_membres') && !dbHasColumn($pdo, 'structure_membr
     ];
 }
 
+// ── actualites : visibilité (actu réservée aux membres de la structure)
 if (dbHasTable($pdo, 'actualites') && !dbHasColumn($pdo, 'actualites', 'visibilite')) {
     $migrations[] = [
         'id'   => 'actus_visibilite',
@@ -451,6 +488,7 @@ if (dbHasTable($pdo, 'actualites') && !dbHasColumn($pdo, 'actualites', 'visibili
     ];
 }
 
+// ── Associations : période d'activité (mandat)
 if (!dbHasColumn($pdo, 'associations', 'date_debut_mandat')) {
     $migrations[] = [
         'id'   => 'assos_mandat_dates',
@@ -463,6 +501,7 @@ if (!dbHasColumn($pdo, 'associations', 'date_debut_mandat')) {
     ];
 }
 
+// ── Associations : logo (chemin/URL d'image)
 if (!dbHasColumn($pdo, 'associations', 'logo')) {
     $migrations[] = [
         'id'   => 'assos_logo',
@@ -473,6 +512,7 @@ if (!dbHasColumn($pdo, 'associations', 'logo')) {
     ];
 }
 
+// ── Sports : colonnes ajoutées au fil du temps (logo, lien_acces, infra_partenaire)
 $sportCols = [
     'logo'             => "ADD COLUMN logo VARCHAR(255) DEFAULT NULL COMMENT 'Chemin ou URL du logo'",
     'lien_acces'       => "ADD COLUMN lien_acces VARCHAR(255) DEFAULT NULL COMMENT 'Lien WhatsApp ou inscription externe'",
@@ -493,6 +533,7 @@ if ($missingSportCols) {
     ];
 }
 
+// ── Comptabilité : 3 tables + catégories par défaut
 if (!dbHasTable($pdo, 'compta_comptes')) {
     $migrations[] = [
         'id'   => 'tbl_compta_comptes',
@@ -592,6 +633,7 @@ if (dbHasTable($pdo, 'compta_transactions') && !dbHasColumn($pdo, 'compta_transa
     ];
 }
 
+// Catégorie recette « Boutique » (modèle Corpo) si absente
 if (dbHasTable($pdo, 'compta_categories')) {
     try {
         $chk = $pdo->query("SELECT 1 FROM compta_categories WHERE structure_type IS NULL AND nom = 'Boutique' LIMIT 1");
@@ -607,6 +649,7 @@ if (dbHasTable($pdo, 'compta_categories')) {
     }
 }
 
+// ── Notes de frais (demandes membres → compta)
 if (!dbHasTable($pdo, 'compta_notes_frais')) {
     $migrations[] = [
         'id'   => 'tbl_compta_notes_frais',
@@ -671,6 +714,7 @@ if (dbHasTable($pdo, 'compta_categories')) {
     }
 }
 
+// ── Notes de frais : double validation (bureau + trésorerie, personnes distinctes)
 if (dbHasTable($pdo, 'compta_notes_frais') && !dbHasColumn($pdo, 'compta_notes_frais', 'valide_bureau_par')) {
     $migrations[] = [
         'id'   => 'nf_dual_validation_cols',
@@ -697,6 +741,7 @@ if (dbHasTable($pdo, 'compta_notes_frais') && !dbHasColumn($pdo, 'compta_notes_f
     ];
 }
 
+// ── Mail / Verification compte
 if (!dbHasColumn($pdo, 'users', 'email_verified_at')) {
     $migrations[] = [
         'id'   => 'users_email_verified_at',
@@ -801,6 +846,85 @@ if (!dbHasTable($pdo, 'boutique_produits')) {
     ];
 }
 
+/* ── Journal des migrations appliquées (historique) ─────── */
+if (!dbHasTable($pdo, 'corpo_schema_migrations')) {
+    $migrations[] = [
+        'id'   => 'tbl_corpo_schema_migrations',
+        'desc' => 'Créer la table corpo_schema_migrations (historique des migrations)',
+        'sql'  => "CREATE TABLE corpo_schema_migrations (
+                     id          VARCHAR(64) NOT NULL PRIMARY KEY,
+                     description VARCHAR(255) DEFAULT NULL,
+                     applied_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                   ) ENGINE=InnoDB",
+    ];
+}
+
+function migrate_log_applied(PDO $pdo, string $id, string $desc = ''): void
+{
+    if (!dbHasTable($pdo, 'corpo_schema_migrations')) {
+        return;
+    }
+    try {
+        $pdo->prepare(
+            'INSERT INTO corpo_schema_migrations (id, description, applied_at)
+             VALUES (?, ?, NOW())
+             ON DUPLICATE KEY UPDATE description = VALUES(description), applied_at = NOW()'
+        )->execute([$id, $desc]);
+    } catch (Throwable $e) {
+        /* non bloquant */
+    }
+}
+
+/** Contrôles affichés même quand aucune migration en attente. */
+function migrate_schema_audit(PDO $pdo): array
+{
+    $checks = [
+        ['evenements', 'banniere', 'Colonne bannière événement'],
+        ['evenements', 'icon', 'Colonne icône / emoji'],
+        ['evenements', 'prix', 'Billetterie — prix'],
+        ['evenements', 'ouvert_externes', 'Inscriptions externes'],
+        ['inscriptions_evenement', 'qr_token', 'QR billet'],
+        ['inscriptions_evenement', 'waitlist_position', 'File d\'attente'],
+        ['inscriptions_evenement', 'paiement_statut', 'Statut paiement billet'],
+        ['evenement_tarifs', null, 'Table tarifs'],
+        ['paiement_transactions', null, 'Table paiements'],
+        ['compta_notes_frais', null, 'Notes de frais'],
+    ];
+    $out = [];
+    foreach ($checks as [$table, $col, $label]) {
+        $ok = $col === null ? dbHasTable($pdo, $table) : dbHasColumn($pdo, $table, $col);
+        $extra = '';
+        if ($table === 'evenements' && $col === 'icon' && $ok) {
+            $len = dbColumnVarcharLength($pdo, $table, $col);
+            $extra = $len !== null ? " (VARCHAR {$len})" : '';
+            if ($len !== null && $len < 32) {
+                $ok = false;
+            }
+        }
+        $out[] = ['label' => $label, 'ok' => $ok, 'extra' => $extra];
+    }
+    return $out;
+}
+
+$schemaAudit = migrate_schema_audit($pdo);
+$dbName = '';
+try {
+    $dbName = (string)$pdo->query('SELECT DATABASE()')->fetchColumn();
+} catch (Throwable $e) {
+    $dbName = '?';
+}
+$migrateHistory = [];
+if (dbHasTable($pdo, 'corpo_schema_migrations')) {
+    try {
+        $migrateHistory = $pdo->query(
+            'SELECT id, description, applied_at FROM corpo_schema_migrations ORDER BY applied_at DESC LIMIT 30'
+        )->fetchAll();
+    } catch (Throwable $e) {
+        $migrateHistory = [];
+    }
+}
+
+/* ── Application des migrations sélectionnées ───────────── */
 $results = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $toApply = $_POST['migrate_ids'] ?? [];
@@ -809,20 +933,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($migrations as $mig) {
         if (!in_array($mig['id'], (array)$toApply, true)) continue;
         try {
-
+            // Supporte plusieurs requêtes séparées par ;
             $stmts = array_filter(array_map('trim', explode(';', $mig['sql'])));
             foreach ($stmts as $stmt) {
                 if ($stmt === '') continue;
                 $pdo->exec($stmt);
             }
             $results[$mig['id']] = ['ok' => true, 'msg' => 'Appliquée'];
+            migrate_log_applied($pdo, $mig['id'], $mig['desc']);
         } catch (Throwable $e) {
             $results[$mig['id']] = ['ok' => false, 'msg' => $e->getMessage()];
         }
     }
-
+    // Recalcule l'état après application : on redirige pour rafraîchir la détection
     if (!empty($results)) {
-        header('Location: migrate.php?done=1');
+        $failed = array_filter($results, static fn(array $r): bool => empty($r['ok']));
+        if ($failed !== [] && session_status() !== PHP_SESSION_ACTIVE) {
+            @session_start();
+        }
+        if ($failed !== [] && session_status() === PHP_SESSION_ACTIVE) {
+            $_SESSION['migrate_last_errors'] = $failed;
+        }
+        $qs = 'done=1';
+        if ($failed !== []) {
+            $qs .= '&failed=' . rawurlencode(implode(',', array_keys($failed)));
+        }
+        header('Location: migrate.php?' . $qs);
         exit;
     }
 }
@@ -831,7 +967,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <h1 class="admin-page-title">🛠 Migrations de la base de données</h1>
 
 <?php if (!empty($_GET['done'])): ?>
-  <div class="flash flash--ok">Migrations appliquées. La page a été rafraîchie pour détecter le nouvel état.</div>
+  <?php if (!empty($_GET['failed'])): ?>
+    <div class="flash flash--err">
+      <p>Certaines migrations ont échoué : <strong><?= htmlspecialchars($_GET['failed']) ?></strong>.</p>
+      <?php
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            @session_start();
+        }
+        $migErrs = $_SESSION['migrate_last_errors'] ?? [];
+        unset($_SESSION['migrate_last_errors']);
+        if ($migErrs !== []):
+      ?>
+        <ul style="margin:.5rem 0 0;padding-left:1.2rem;font-size:.85rem">
+          <?php foreach ($migErrs as $mid => $info): ?>
+            <li><code><?= htmlspecialchars($mid) ?></code> — <?= htmlspecialchars($info['msg'] ?? '') ?></li>
+          <?php endforeach; ?>
+        </ul>
+      <?php endif; ?>
+      <p style="margin-top:.5rem;font-size:.85rem">Tu peux aussi coller ce SQL dans phpMyAdmin : <code>ALTER TABLE evenements MODIFY COLUMN icon VARCHAR(32) DEFAULT NULL;</code></p>
+    </div>
+  <?php else: ?>
+    <div class="flash flash--ok">Migrations appliquées. La page a été rafraîchie pour détecter le nouvel état.</div>
+  <?php endif; ?>
 <?php endif; ?>
 
 <div class="flash flash--info">
@@ -840,11 +997,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   (n'apparaissent que si nécessaires) et n'effacent jamais de données.
 </div>
 
+<div class="admin-card" style="padding:var(--s5);margin-bottom:var(--s4)">
+  <h2 style="font-size:1rem;margin:0 0 var(--s3)">État du schéma</h2>
+  <p style="font-size:.85rem;color:var(--text-muted);margin:0 0 var(--s4)">
+    Base connectée : <code><?= htmlspecialchars($dbName) ?></code>
+    <?php if (!empty($GLOBALS['corpo_migrate_schema_error'])): ?>
+      <br><span class="badge badge--ko">Introspection limitée</span>
+      <?= htmlspecialchars($GLOBALS['corpo_migrate_schema_error']) ?>
+    <?php endif; ?>
+  </p>
+  <ul style="list-style:none;margin:0;padding:0;display:grid;gap:.35rem;font-size:.88rem">
+    <?php foreach ($schemaAudit as $row): ?>
+      <li>
+        <?php if ($row['ok']): ?>
+          <span class="badge badge--ok">OK</span>
+        <?php else: ?>
+          <span class="badge badge--ko">Manquant</span>
+        <?php endif; ?>
+        <?= htmlspecialchars($row['label']) ?><?= htmlspecialchars($row['extra']) ?>
+      </li>
+    <?php endforeach; ?>
+  </ul>
+  <?php
+    $auditFail = array_filter($schemaAudit, static fn(array $r): bool => !$r['ok']);
+    if ($auditFail !== [] && empty($migrations)):
+  ?>
+    <p class="flash flash--warn" style="margin:var(--s4) 0 0">
+      Des éléments semblent manquants mais aucune migration automatique n'a été générée
+      (droits <code>information_schema</code> ou schéma non standard). Réimporte <code>database.sql</code>
+      ou contacte un admin.
+    </p>
+  <?php endif; ?>
+</div>
+
+<?php if (!empty($migrateHistory)): ?>
+  <div class="admin-card" style="padding:var(--s5);margin-bottom:var(--s4)">
+    <h2 style="font-size:1rem;margin:0 0 var(--s3)">Dernières migrations enregistrées</h2>
+    <table class="admin-table admin-table--keep">
+      <thead><tr><th>ID</th><th>Description</th><th>Date</th></tr></thead>
+      <tbody>
+        <?php foreach ($migrateHistory as $h): ?>
+          <tr>
+            <td><code><?= htmlspecialchars($h['id']) ?></code></td>
+            <td><?= htmlspecialchars($h['description'] ?? '') ?></td>
+            <td><?= htmlspecialchars($h['applied_at'] ?? '') ?></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+<?php endif; ?>
+
 <?php if (empty($migrations)): ?>
   <div class="admin-card" style="text-align:center;padding:var(--s6)">
     <p style="font-size:2rem;margin-bottom:var(--s3)">✓</p>
-    <h2 style="margin-bottom:var(--s2)">Base de données à jour</h2>
-    <p style="color:var(--text-muted)">Toutes les migrations sont déjà appliquées.</p>
+    <h2 style="margin-bottom:var(--s2)">Aucune migration en attente</h2>
+    <p style="color:var(--text-muted)">
+      Le détecteur ne voit rien à appliquer : ta base correspond déjà au schéma attendu
+      (ou tu as importé un <code>database.sql</code> récent). Vérifie la liste « État du schéma » ci-dessus :
+      tout doit être <span class="badge badge--ok">OK</span>.
+    </p>
   </div>
 <?php else: ?>
   <form method="post">

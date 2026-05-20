@@ -1,10 +1,11 @@
 <?php
-
+// structures - réservé au super admin
 require_once '../includes/db.php';
 $adminTitle = 'Structures';
 $adminPage  = 'structures';
 require_once 'includes/admin-header.php';
 
+// Page réservée au Super Admin
 if (!isSuperAdmin()) {
     echo '<div class="flash flash--err">Accès réservé au Super Administrateur.</div>';
     require_once 'includes/admin-footer.php';
@@ -13,9 +14,11 @@ if (!isSuperAdmin()) {
 
 $flash = '';
 
+// actions POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
+    // Créer une association / structure
     if ($action === 'create_asso') {
         $slug  = preg_replace('/[^a-z0-9]+/','-', strtolower(trim($_POST['slug'] ?? '')));
         $nom   = trim($_POST['nom'] ?? '');
@@ -67,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// lecture des structures
 $assos  = $pdo->query("SELECT a.*, COUNT(sm.id) AS nb_membres FROM associations a LEFT JOIN structure_membres sm ON sm.structure_type='asso' AND sm.structure_id=a.id AND sm.statut='actif' GROUP BY a.id ORDER BY a.type, a.nom")->fetchAll();
 $sports = $pdo->query("SELECT s.*, COUNT(sm.id) AS nb_membres FROM sports s LEFT JOIN structure_membres sm ON sm.structure_type='sport' AND sm.structure_id=s.id AND sm.statut='actif' GROUP BY s.id ORDER BY s.nom")->fetchAll();
 ?>
@@ -77,6 +81,7 @@ $sports = $pdo->query("SELECT s.*, COUNT(sm.id) AS nb_membres FROM sports s LEFT
 
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s6)">
 
+  <!-- ─ Associations ─ -->
   <div>
     <div class="admin-card">
       <h2>Créer une association / structure</h2>
@@ -157,6 +162,7 @@ $sports = $pdo->query("SELECT s.*, COUNT(sm.id) AS nb_membres FROM sports s LEFT
     </div>
   </div>
 
+  <!-- ─ Sports ─ -->
   <div>
     <div class="admin-card">
       <h2>Créer un sport</h2>

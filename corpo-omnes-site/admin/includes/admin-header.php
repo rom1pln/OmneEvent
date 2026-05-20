@@ -1,7 +1,9 @@
 <?php
-
+// Header admin - attend $adminTitle et $adminPage
+// Les délégués (resp_*) ne voient que leurs sections
 require_once __DIR__ . '/../../includes/auth.php';
 
+// rafraîchit les droits depuis la BDD à chaque page
 if (isset($pdo) && $pdo instanceof PDO) {
     refreshUserSession($pdo);
 }
@@ -20,7 +22,7 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
   <meta name="theme-color" content="#190038">
   <title><?= htmlspecialchars($adminTitle ?? 'Admin') ?> - Admin Corpo Omnes Lyon</title>
   <?php
-
+    // version basée sur la date de modif pour forcer le rechargement du CSS
     $admCssPath = __DIR__ . '/../../css/style.css';
     $admCssVer  = file_exists($admCssPath) ? filemtime($admCssPath) : '1';
     $admMobPath = __DIR__ . '/../../css/mobile-first.css';
@@ -29,7 +31,6 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
   <link rel="stylesheet" href="../css/style.css?v=<?= $admCssVer ?>">
   <link rel="stylesheet" href="../css/mobile-first.css?v=<?= $admMobVer ?>">
   <style>
-
     body { display: flex; min-height: 100vh; }
 
     .admin-sidebar {
@@ -38,8 +39,7 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
       border-right: 1px solid var(--border);
       display: flex; flex-direction: column;
       padding: var(--s6) 0;
-
-      min-height: 100vh;
+      min-height: 100vh; /* s'étire avec la page, pas juste 100vh */
     }
     .admin-sidebar__brand {
       display: flex; align-items: center; gap: var(--s3);
@@ -78,7 +78,7 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
     .admin-nav__group:first-child { margin-top: 0; }
     .admin-nav__badge {
       margin-left: auto;
-      background: var(--purple);
+      background: #ef4444;
       color: #fff;
       border-radius: 999px;
       padding: 1px 7px;
@@ -95,6 +95,7 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
     .admin-sidebar__footer a { color: var(--blue-light); }
     .admin-sidebar__footer a:hover { color: #fff; }
 
+    /* pas de overflow-y:auto sur main pour que la sidebar suive la hauteur du contenu */
     .admin-main { flex: 1; padding: var(--s8); max-width: calc(100vw - 230px); min-width: 0; }
 
     .admin-page-title { font-size: 1.6rem; font-weight: 700; margin-bottom: var(--s6); }
@@ -119,9 +120,9 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
     .flash strong { font-weight: 700; }
     .flash--ok   { background: rgba(34,197,94,.12);  border-color: rgba(34,197,94,.4);  color: #86efac; }
     .flash--err  { background: rgba(239,68,68,.12);  border-color: rgba(239,68,68,.4);  color: #fca5a5; }
-    .flash--warn { background: rgba(251,191,36,.12); border-color: rgba(251,191,36,.4); color: #fcd34d; }
-    .flash--info { background: rgba(99,102,241,.12); border-color: rgba(99,102,241,.4); color: #a5b4fc; }
-    .flash--scope{ background: rgba(139,47,201,.10); border-color: rgba(139,47,201,.35); color: var(--purple-light); }
+    .flash--warn { background: rgba(251,191,36,.12); border-color: rgba(251,191,36,.4); color: #fde68a; }
+    .flash--info { background: rgba(99,102,241,.12); border-color: rgba(99,102,241,.4); color: #c7d2fe; }
+    .flash--scope{ background: rgba(139,47,201,.10); border-color: rgba(139,47,201,.35); color: #d8b4fe; }
 
     .admin-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
     .admin-table th, .admin-table td {
@@ -132,11 +133,11 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
     .admin-table th { color: var(--blue-light); font-weight: 700; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
     .admin-table tr:hover td { background: rgba(255,255,255,.02); }
     .admin-table .actions { display: flex; gap: var(--s2); flex-wrap: wrap; }
-    .btn--danger { background: rgba(239,68,68,.2); color: #fca5a5; }
+    .btn--danger { background: rgba(239,68,68,.2); color: #fca5a5; border: 1px solid rgba(239,68,68,.3); }
     .btn--danger:hover { background: rgba(239,68,68,.4); }
-    .btn--success { background: rgba(34,197,94,.2); color: #86efac; }
+    .btn--success { background: rgba(34,197,94,.2); color: #86efac; border: 1px solid rgba(34,197,94,.3); }
     .btn--success:hover { background: rgba(34,197,94,.4); }
-    .btn--warn { background: rgba(251,191,36,.2); color: #fcd34d; }
+    .btn--warn { background: rgba(251,191,36,.2); color: #fde68a; border: 1px solid rgba(251,191,36,.3); }
     .btn--warn:hover { background: rgba(251,191,36,.4); }
     .btn--sm { padding: .25rem .6rem; font-size: .75rem; }
 
@@ -152,7 +153,7 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
     .admin-form select,
     .admin-form textarea {
       width: 100%; background: rgba(255,255,255,.04); border: 1px solid var(--border);
-      border-radius: var(--r-md); padding: .55rem var(--s4); color: var(--text);
+      border-radius: var(--r-md); padding: .55rem var(--s4); color: #fff; font-size: .85rem;
       outline: none; transition: border-color var(--ease); box-sizing: border-box;
     }
     .admin-form input:focus,
@@ -160,10 +161,10 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
     .admin-form textarea:focus { border-color: var(--purple); }
     .admin-form textarea { resize: vertical; min-height: 80px; }
     .admin-form select option,
-    .admin-form select optgroup { background: #190038; }
+    .admin-form select optgroup { background: #130028; color: #fff; }
 
     .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .72rem; font-weight: 600; }
-    .badge--pending { background: rgba(251,191,36,.2); color: #fcd34d; }
+    .badge--pending { background: rgba(251,191,36,.2); color: #fde68a; }
     .badge--ok      { background: rgba(34,197,94,.2); color: #86efac; }
     .badge--ko      { background: rgba(239,68,68,.2); color: #fca5a5; }
 
@@ -177,8 +178,9 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
       border: 1px solid var(--border);
       transition: color var(--ease), border-color var(--ease), background var(--ease);
     }
-    .admin-back-btn:hover { color: #fff; }
+    .admin-back-btn:hover { color: #fff; border-color: var(--purple); background: rgba(255,255,255,.05); }
 
+    /* ─── Burger button + overlay (mobile) ───────────── */
     .admin-burger {
       display: none;
       position: fixed;
@@ -223,6 +225,7 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
       opacity: 1;
     }
 
+    /* ─── RESPONSIVE TABLET (<= 980px) ────────────────── */
     @media (max-width: 980px) {
       body { display: block; }
       .admin-burger { display: flex; }
@@ -237,9 +240,9 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
         transition: transform .28s ease;
         box-shadow: 4px 0 24px rgba(0,0,0,.4);
         width: min(280px, 86vw);
-
-        background: var(--surface);
-        background-image: linear-gradient(180deg, #220050 0%, #190038 50%, #0D001F 100%);
+        /* IMPORTANT : fond opaque pour ne pas voir le contenu derrière */
+        background: #1a0040;
+        background-image: linear-gradient(180deg, #1a0040 0%, #130030 100%);
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -269,6 +272,7 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
       .admin-page-title { font-size: 1.3rem; margin-bottom: var(--s4); }
     }
 
+    /* ─── RESPONSIVE MOBILE (<= 540px) ────────────────── */
     @media (max-width: 540px) {
       .admin-main { padding: 68px var(--s3) var(--s4); }
       .admin-card { padding: var(--s4); margin-bottom: var(--s4); }
@@ -280,6 +284,7 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
 
       .flash { font-size: .8rem; padding: var(--s2) var(--s3); }
 
+      /* Tables admin → cartes empilées (chaque <tr> devient une mini-carte) */
       .admin-table,
       .admin-table thead,
       .admin-table tbody,
@@ -287,7 +292,7 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
       .admin-table td,
       .admin-table th { display: block; }
 
-      .admin-table thead { display: none; }
+      .admin-table thead { display: none; } /* on cache l'en-tête, les labels viennent des data-label */
 
       .admin-table tr {
         background: rgba(255,255,255,.025);
@@ -334,19 +339,24 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
       .admin-table .actions .btn { font-size: .72rem; padding: .3rem .55rem; }
     }
 
+    /* (styles register dans style.css) */
   </style>
 </head>
 <body>
 
-    <button type="button" class="admin-burger" id="adminBurger" aria-label="Ouvrir le menu" aria-controls="adminSidebar" aria-expanded="false">
+  <!-- Burger button (visible mobile) -->
+  <button type="button" class="admin-burger" id="adminBurger" aria-label="Ouvrir le menu" aria-controls="adminSidebar" aria-expanded="false">
     <span></span><span></span><span></span>
   </button>
 
-    <div class="admin-overlay" id="adminOverlay" aria-hidden="true"></div>
+  <!-- Backdrop (visible quand sidebar ouverte sur mobile) -->
+  <div class="admin-overlay" id="adminOverlay" aria-hidden="true"></div>
 
-    <aside class="admin-sidebar" id="adminSidebar">
+  <!-- Sidebar -->
+  <aside class="admin-sidebar" id="adminSidebar">
 
-        <div class="admin-sidebar__brand">
+    <!-- Marque + retour au site -->
+    <div class="admin-sidebar__brand">
       <img src="../images/logo-corpo-omnes.png" alt="Logo">
       <div>
         <div class="admin-sidebar__brand-label">Corpo Omnes</div>
@@ -354,7 +364,8 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
       </div>
     </div>
 
-        <a href="../index.php" class="admin-back-btn">← Retour au site</a>
+    <!-- Bouton retour site bien visible -->
+    <a href="../index.php" class="admin-back-btn">← Retour au site</a>
 
     <?php
     $ap = $adminPage ?? '';
@@ -514,7 +525,8 @@ if (isset($pdo) && $pdo instanceof PDO && isset($adminPage)) {
 
     </ul>
 
-        <div class="admin-sidebar__footer">
+    <!-- Pied de sidebar : profil + déco -->
+    <div class="admin-sidebar__footer">
       <?= roleBadge(currentRole()) ?>
       <?php
         $adminFullName = trim(($_SESSION['user_prenom'] ?? '') . ' ' . ($_SESSION['user_nom'] ?? ''));

@@ -1,7 +1,8 @@
-
+// Données statiques des assos - TODO: remplacer par des appels API quand le backend sera prêt
 
 const ASSOCIATIONS = [
 
+  // inter-écoles
   {
     id: 1, slug: "corpo-omnes",
     nom: "Corpo OMNES",
@@ -31,6 +32,7 @@ const ASSOCIATIONS = [
     color: "#8B2FC9"
   },
 
+  // BDE
   {
     id: 3, slug: "bde-shot",
     nom: "BDE Shot",
@@ -144,6 +146,7 @@ const ASSOCIATIONS = [
     color: "#003DA5"
   },
 
+  // HEIP
   {
     id: 11, slug: "echofed",
     nom: "EchoFed",
@@ -243,6 +246,7 @@ const ASSOCIATIONS = [
     color: "#E52521"
   },
 
+  // ESCE
   {
     id: 18, slug: "cine-club-esce",
     nom: "Ciné Club",
@@ -300,6 +304,7 @@ const ASSOCIATIONS = [
     color: "#002D74"
   },
 
+  // ECE
   {
     id: 22, slug: "bds-ece",
     nom: "BDS ECE",
@@ -611,6 +616,7 @@ const PARTENAIRES = [
   }
 ];
 
+// Accesseurs (à remplacer par fetch() quand le backend PHP sera prêt)
 function getAssociations(filters = {}) {
   let data = [...ASSOCIATIONS];
   if (filters.type)   data = data.filter(a => a.type === filters.type);

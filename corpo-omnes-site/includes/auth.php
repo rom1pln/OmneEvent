@@ -1,9 +1,14 @@
 <?php
+// Gestion des rôles et permissions
+// Hiérarchie : super_admin > admin_corpo > membre_corpo > user
+// Les admins de BDE/BDS peuvent gérer les structures de leur école
 
 if (is_file(__DIR__ . '/env.php')) {
     require_once __DIR__ . '/env.php';
 }
 
+// Vérifie si on est en HTTPS, y compris derrière un proxy
+// sans ça le cookie de session perd le flag Secure
 function is_https_request(): bool {
     if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
         return true;
@@ -22,6 +27,9 @@ function is_https_request(): bool {
 }
 
 if (session_status() === PHP_SESSION_NONE) {
+    @ini_set('session.use_strict_mode', '1');
+    @ini_set('session.use_only_cookies', '1');
+    @ini_set('session.cookie_httponly', '1');
     $secure = is_https_request();
     $cookiePath = '/';
     $lifetimeDays = 30;
@@ -37,6 +45,7 @@ if (session_status() === PHP_SESSION_NONE) {
     }
     $lifetime = $lifetimeDays * 86400;
 
+    // la GC serveur doit avoir la même durée que le cookie sinon l'user se retrouve déco sans raison
     if ($lifetime > 0) {
         @ini_set('session.gc_maxlifetime', (string)$lifetime);
         @ini_set('session.cookie_lifetime', (string)$lifetime);
@@ -56,6 +65,7 @@ if (session_status() === PHP_SESSION_NONE) {
     }
     session_start();
 
+    // renouvelle le cookie à chaque visite pour pas que l'user soit déco s'il revient régulièrement
     if ($lifetime > 0 && !headers_sent() && isset($_COOKIE[session_name()])) {
         setcookie(session_name(), session_id(), [
             'expires'  => time() + $lifetime,
@@ -67,6 +77,8 @@ if (session_status() === PHP_SESSION_NONE) {
         ]);
     }
 }
+
+// --- session ---
 
 function isLoggedIn(): bool {
     return !empty($_SESSION['user_id']);
@@ -80,30 +92,38 @@ function currentUserId(): ?int {
     return isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
 }
 
+// --- vérifications rôle global ---
+
 function isSuperAdmin(): bool {
     return currentRole() === 'super_admin';
 }
 
+// admin Corpo ou super admin
 function isAdminCorpo(): bool {
     return in_array(currentRole(), ['super_admin', 'admin_corpo'], true);
 }
 
+// membre Corpo ou plus
 function isMembreCorpo(): bool {
     return in_array(currentRole(), ['super_admin', 'admin_corpo', 'membre_corpo'], true);
 }
 
+// accès panel admin (membre corpo ou plus)
 function hasAdminAccess(): bool {
     return isMembreCorpo();
 }
 
+// ancien nom, on garde pour pas tout casser
 function isAdmin(): bool {
     return isAdminCorpo();
 }
 
+// idem, ancien nom
 function isBureau(): bool {
     return hasAdminAccess() || hasAnyAdminRole();
 }
 
+// est-ce qu'il est admin quelque part
 function hasAnyAdminRole(): bool {
     if (!isLoggedIn()) return false;
     foreach ($_SESSION['memberships'] ?? [] as $m) {
@@ -112,6 +132,7 @@ function hasAnyAdminRole(): bool {
     return false;
 }
 
+// a-t-il une délégation quelque part (events, partenaires, commu, tréso)
 function hasAnyStructureDelegation(): bool {
     if (!isLoggedIn()) return false;
     foreach (getMemberships() as $m) {
@@ -124,6 +145,7 @@ function hasAnyStructureDelegation(): bool {
     return false;
 }
 
+// est membre bureau (admin ou membre) dans au moins une structure
 function hasAnyStructureBureauMemberRole(): bool {
     if (!isLoggedIn()) {
         return false;
@@ -136,6 +158,7 @@ function hasAnyStructureBureauMemberRole(): bool {
     return false;
 }
 
+// peut se connecter au panel admin
 function hasAdminPanelAccess(): bool {
     return isMembreCorpo()
         || hasAnyAdminRole()
@@ -148,7 +171,7 @@ function _membershipHasResponsabilite(array $m, string $respKey): bool {
     if ($role === 'admin') {
         return true;
     }
-
+    // les membres bureau peuvent gérer les events de leur structure
     if ($respKey === 'evenement' && $role === 'membre') {
         return true;
     }
@@ -161,6 +184,7 @@ function _membershipHasResponsabilite(array $m, string $respKey): bool {
     };
 }
 
+// version sans le droit auto du bureau (pour afficher les délégations seules)
 function membershipHasExplicitResponsabilite(array $m, string $respKey): bool {
     if (($m['role'] ?? '') === 'admin') {
         return false;
@@ -174,6 +198,7 @@ function membershipHasExplicitResponsabilite(array $m, string $respKey): bool {
     };
 }
 
+// retourne les structures où l'user a une délégation explicite
 function getExplicitDelegatedStructures(string $respKey): array {
     $out = [];
     foreach (getMemberships() as $m) {
@@ -185,6 +210,7 @@ function getExplicitDelegatedStructures(string $respKey): array {
     return $out;
 }
 
+// vérifie la responsabilité sur une structure précise
 function memberHasStructureResponsabilite(string $structType, int $structId, string $respKey): bool {
     if (!isLoggedIn()) return false;
     foreach (getMemberships() as $m) {
@@ -196,6 +222,7 @@ function memberHasStructureResponsabilite(string $structType, int $structId, str
     return false;
 }
 
+// peut gérer une ressource (event, partenaire, actu, compta) pour une structure
 function canManageStructureResource(PDO $pdo, string $structType, ?int $structId, string $respKey): bool {
     if (isAdminCorpo()) return true;
     if (!$structId || $structId <= 0) return false;
@@ -217,6 +244,7 @@ function canManageStructureResource(PDO $pdo, string $structType, ?int $structId
     return false;
 }
 
+// peut accéder à la fiche admin de l'événement (participants, scan, modif)
 function canManageEvenement(PDO $pdo, array $ev): bool {
     if (isAdminCorpo()) {
         return true;
@@ -239,6 +267,7 @@ function hasExplicitTreasuryDelegation(): bool {
     return false;
 }
 
+// panel limité au dashboard + notes de frais (membre bureau sans délégation)
 function isAdminPanelNotesFraisOnly(): bool {
     if (!isLoggedIn()) {
         return false;
@@ -265,6 +294,7 @@ function isAdminPanelDelegationOnly(): bool {
     return hasAnyStructureDelegation();
 }
 
+// extrait le nom de page depuis une URL type "evenements.php"
 function adminPanelPageKeyFromHref(string $href): string {
     $base = basename(parse_url($href, PHP_URL_PATH) ?: $href);
     $base = preg_replace('/\.php$/i', '', $base) ?: '';
@@ -274,6 +304,7 @@ function adminPanelPageKeyFromHref(string $href): string {
     return $base !== '' ? $base : 'dashboard';
 }
 
+// vérifie si la page est accessible selon les droits de délégation
 function adminPanelDelegationAllows(PDO $pdo, string $adminPage): bool {
     if ($adminPage === 'notes-frais' && !function_exists('nf_can_access_admin_notes_page')) {
         require_once __DIR__ . '/notes-frais.php';
@@ -308,6 +339,7 @@ function adminPanelDelegationAllows(PDO $pdo, string $adminPage): bool {
     };
 }
 
+// redirige vers le dashboard si l'accès est refusé
 function requireAdminPanelDelegationRoute(PDO $pdo, string $adminPage): void {
     if (adminPanelDelegationAllows($pdo, $adminPage)) {
         return;
@@ -316,10 +348,14 @@ function requireAdminPanelDelegationRoute(PDO $pdo, string $adminPage): void {
     exit;
 }
 
+// --- appartenance structures ---
+
+// retourne les structures de l'user stockées en session
 function getMemberships(): array {
     return $_SESSION['memberships'] ?? [];
 }
 
+// est au moins membre de cette structure
 function isMembreOf(string $type, int $id): bool {
     foreach (getMemberships() as $m) {
         if ($m['type'] === $type && (int)$m['id'] === $id) return true;
@@ -327,6 +363,7 @@ function isMembreOf(string $type, int $id): bool {
     return false;
 }
 
+// est admin de cette structure
 function isAdminOf(string $type, int $id): bool {
     foreach (getMemberships() as $m) {
         if ($m['type'] === $type && (int)$m['id'] === $id && $m['role'] === 'admin') return true;
@@ -334,6 +371,9 @@ function isAdminOf(string $type, int $id): bool {
     return false;
 }
 
+// --- permissions hiérarchiques ---
+
+// peut gérer l'asso (direct, BDE parent, fédé, ou Corpo)
 function canManageAsso(int $assoId, PDO $pdo): bool {
     if (isAdminCorpo()) return true;
     if (isAdminOf('asso', $assoId)) return true;
@@ -344,18 +384,19 @@ function canManageAsso(int $assoId, PDO $pdo): bool {
 
     if ($parentBdeId) {
         $parentId = (int)$parentBdeId;
-
+        // admin du BDE parent
         if (isAdminOf('bde', $parentId)) return true;
-
+        // ou admin de la fédé (ex: EchoFed pour les assos HEIP)
         if (in_array($parentId, _getAdminFederationIds($pdo), true)) return true;
     } else {
-
+        // asso sans BDE → gérée par la Corpo directement
         if (_isAdminCorpoAsso($pdo)) return true;
     }
 
     return false;
 }
 
+// peut gérer ce sport (direct, BDS, BDE école, ou OMNES Sport/Corpo pour les inter-école)
 function canManageSport(int $sportId, PDO $pdo): bool {
     if (isAdminCorpo()) return true;
     if (isAdminOf('sport', $sportId)) return true;
@@ -370,9 +411,10 @@ function canManageSport(int $sportId, PDO $pdo): bool {
     if (!$sport) return false;
 
     if ($sport['parent_bds_id']) {
-
+        // sport d'école
         if (isAdminOf('bds', (int)$sport['parent_bds_id'])) return true;
 
+        // ou admin BDE de la même école
         if ($sport['bds_ecole']) {
             $bdeStmt = $pdo->prepare(
                 "SELECT id FROM associations WHERE type = 'BDE' AND ecole = ? LIMIT 1"
@@ -381,11 +423,12 @@ function canManageSport(int $sportId, PDO $pdo): bool {
             $bdeId = $bdeStmt->fetchColumn();
             if ($bdeId && isAdminOf('bde', (int)$bdeId)) return true;
 
+            // ou admin d'une fédération de la même école
             $fedEcoles = _getAdminFederationEcoles($pdo);
             if (in_array((string)$sport['bds_ecole'], $fedEcoles, true)) return true;
         }
     } else {
-
+        // sport inter-école (Omnes)
         $omnesStmt = $pdo->prepare(
             "SELECT id FROM associations WHERE slug = 'omnes-sport' LIMIT 1"
         );
@@ -393,18 +436,19 @@ function canManageSport(int $sportId, PDO $pdo): bool {
         $omnesSportId = $omnesStmt->fetchColumn();
         if ($omnesSportId && isAdminOf('bds', (int)$omnesSportId)) return true;
 
+        // ou admin Corpo (qui chapeaute OMNES Sport)
         if (_isAdminCorpoAsso($pdo)) return true;
     }
 
     return false;
 }
 
+// peut gérer ce BDE (direct, Corpo, ou fédé de la même école)
 function canManageBDE(int $bdeId, ?PDO $pdo = null): bool {
     if (isAdminCorpo()) return true;
     if (isAdminOf('bde', $bdeId)) return true;
-
     if ($pdo && _isAdminCorpoAsso($pdo)) return true;
-
+    // ou fédé de la même école
     if ($pdo) {
         $fedEcoles = _getAdminFederationEcoles($pdo);
         if (!empty($fedEcoles)) {
@@ -419,6 +463,7 @@ function canManageBDE(int $bdeId, ?PDO $pdo = null): bool {
     return false;
 }
 
+// peut gérer ce BDS (idem BDE)
 function canManageBDS(int $bdsId, ?PDO $pdo = null): bool {
     if (isAdminCorpo()) return true;
     if (isAdminOf('bds', $bdsId)) return true;
@@ -437,9 +482,9 @@ function canManageBDS(int $bdsId, ?PDO $pdo = null): bool {
     return false;
 }
 
+// est-il admin de l'asso Corpo OMNES (résultat mis en cache session)
 function _isAdminCorpoAsso(PDO $pdo): bool {
     if (!isLoggedIn()) return false;
-
     if (isset($_SESSION['_is_admin_corpo_asso'])) {
         return (bool)$_SESSION['_is_admin_corpo_asso'];
     }
@@ -449,6 +494,7 @@ function _isAdminCorpoAsso(PDO $pdo): bool {
     return $result;
 }
 
+// récupère l'ID de l'asso Corpo OMNES (mis en cache session)
 function getCorpoOmnesAssoId(PDO $pdo): ?int {
     if (array_key_exists('_corpo_omnes_asso_id', $_SESSION)) {
         $val = $_SESSION['_corpo_omnes_asso_id'];
@@ -465,6 +511,7 @@ function getCorpoOmnesAssoId(PDO $pdo): ?int {
     }
 }
 
+// si le type est "corpo", on le remplace par l'asso Corpo OMNES
 function resolveCorpoStructure(PDO $pdo, string $structType, ?int $structId): array {
     if ($structType === 'corpo') {
         $corpoId = getCorpoOmnesAssoId($pdo);
@@ -475,12 +522,12 @@ function resolveCorpoStructure(PDO $pdo, string $structType, ?int $structId): ar
     return [$structType, $structId];
 }
 
+// IDs des fédérations dont l'user est admin (une fédé = BDE étendu pour son école)
 function _getAdminFederationIds(PDO $pdo): array {
     if (!isLoggedIn()) return [];
     if (isset($_SESSION['_admin_federation_ids'])) {
         return $_SESSION['_admin_federation_ids'];
     }
-
     $adminAssoIds = [];
     foreach (getMemberships() as $m) {
         if (($m['role'] ?? '') === 'admin' && ($m['type'] ?? '') === 'asso') {
@@ -506,6 +553,7 @@ function _getAdminFederationIds(PDO $pdo): array {
     return $fedIds;
 }
 
+// écoles couvertes par les fédérations de l'user (même droits que admin BDE sur ces écoles)
 function _getAdminFederationEcoles(PDO $pdo): array {
     if (!isLoggedIn()) return [];
     if (isset($_SESSION['_admin_federation_ecoles'])) {
@@ -526,11 +574,13 @@ function _getAdminFederationEcoles(PDO $pdo): array {
     return $ecoles;
 }
 
+// IDs des assos que l'user peut gérer ([] = toutes si admin_corpo)
 function getManagedAssoIds(PDO $pdo): array {
     if (isAdminCorpo()) return [];
 
     $ids = [];
 
+    // admin Corpo OMNES → assos sans BDE parent (sauf les BDE/BDS/Corpo eux-mêmes)
     if (_isAdminCorpoAsso($pdo)) {
         $stmt = $pdo->query(
             "SELECT id FROM associations
@@ -547,21 +597,18 @@ function getManagedAssoIds(PDO $pdo): array {
             $ids[] = (int)$m['id'];
         }
         if ($m['type'] === 'bde') {
-
-            $stmt = $pdo->prepare(
-                "SELECT id FROM associations WHERE parent_bde_id = ?"
-            );
+            // toutes les assos enfants du BDE + le BDE lui-même
+            $stmt = $pdo->prepare("SELECT id FROM associations WHERE parent_bde_id = ?");
             $stmt->execute([$m['id']]);
             foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $aid) $ids[] = (int)$aid;
-
             $ids[] = (int)$m['id'];
         }
         if ($m['type'] === 'bds') {
-
             $ids[] = (int)$m['id'];
         }
     }
 
+    // fédé → ses assos enfants + les assos du BDE de la même école
     $fedIds = _getAdminFederationIds($pdo);
     if (!empty($fedIds)) {
         $ph = implode(',', array_fill(0, count($fedIds), '?'));
@@ -590,11 +637,13 @@ function getManagedAssoIds(PDO $pdo): array {
     return array_unique(array_filter($ids));
 }
 
+// IDs des sports que l'user peut gérer ([] = tous si admin_corpo)
 function getManagedSportIds(PDO $pdo): array {
     if (isAdminCorpo()) return [];
 
     $ids = [];
 
+    // admin Corpo OMNES → sports inter-école aussi
     if (_isAdminCorpoAsso($pdo)) {
         $stmt = $pdo->query("SELECT id FROM sports WHERE parent_bds_id IS NULL");
         foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $sid) $ids[] = (int)$sid;
@@ -604,16 +653,15 @@ function getManagedSportIds(PDO $pdo): array {
         if ($m['role'] !== 'admin') continue;
 
         if ($m['type'] === 'sport') {
-
             $ids[] = (int)$m['id'];
         }
 
         if ($m['type'] === 'bds') {
-
             $s = $pdo->prepare("SELECT id FROM sports WHERE parent_bds_id = ?");
             $s->execute([$m['id']]);
             foreach ($s->fetchAll(PDO::FETCH_COLUMN) as $sid) $ids[] = (int)$sid;
 
+            // OMNES Sport = accès aux sports inter-école aussi
             $slugStmt = $pdo->prepare("SELECT slug FROM associations WHERE id = ? LIMIT 1");
             $slugStmt->execute([$m['id']]);
             if ($slugStmt->fetchColumn() === 'omnes-sport') {
@@ -623,7 +671,7 @@ function getManagedSportIds(PDO $pdo): array {
         }
 
         if ($m['type'] === 'bde') {
-
+            // admin BDE → sports de son école via le BDS
             $ecoleStmt = $pdo->prepare("SELECT ecole FROM associations WHERE id = ? LIMIT 1");
             $ecoleStmt->execute([$m['id']]);
             $ecole = $ecoleStmt->fetchColumn();
@@ -642,6 +690,7 @@ function getManagedSportIds(PDO $pdo): array {
         }
     }
 
+    // fédé → mêmes droits sport que admin BDE de la même école
     $fedEcoles = _getAdminFederationEcoles($pdo);
     if (!empty($fedEcoles)) {
         $ph = implode(',', array_fill(0, count($fedEcoles), '?'));
@@ -661,6 +710,8 @@ function getManagedSportIds(PDO $pdo): array {
     return array_unique($ids);
 }
 
+// remet le rôle global à 'user' si l'user n'est plus admin de rien
+// (évite qu'il garde l'accès panel après avoir été retiré d'une structure)
 function syncGlobalRoleAfterStructChange(PDO $pdo, int $userId): void {
     if ($userId <= 0) return;
 
@@ -678,13 +729,14 @@ function syncGlobalRoleAfterStructChange(PDO $pdo, int $userId): void {
     if ($nbAdmin === 0) {
         $pdo->prepare("UPDATE users SET role = 'user' WHERE id = ? AND role = 'membre_corpo'")
             ->execute([$userId]);
-
+        // propage en session si c'est le user courant
         if ((int)($_SESSION['user_id'] ?? 0) === $userId) {
             $_SESSION['user_role'] = 'user';
         }
     }
 }
 
+// ancien nom conservé pour compat
 function canManageStructure(string $type, int $structureId, ?PDO $pdo = null): bool {
     if (isAdminCorpo()) return true;
     if ($type === 'asso' && $pdo) return canManageAsso($structureId, $pdo);
@@ -694,6 +746,9 @@ function canManageStructure(string $type, int $structureId, ?PDO $pdo = null): b
     return isAdminOf($type, $structureId);
 }
 
+// --- chargement des memberships au login ---
+
+// charge les structures de l'user en session (à appeler après login)
 function loadMemberships(int $userId, PDO $pdo): void {
     $extraCols = '';
     try {
@@ -726,6 +781,8 @@ function loadMemberships(int $userId, PDO $pdo): void {
     $_SESSION['_last_refresh_at'] = time();
 }
 
+// rafraîchit les infos de session depuis la BDD sans se reconnecter
+// throttlé à 5s pour pas spammer la BDD
 function refreshUserSession(PDO $pdo, int $minIntervalSec = 5): void {
     if (!isLoggedIn()) return;
     $last = (int)($_SESSION['_last_refresh_at'] ?? 0);
@@ -737,14 +794,7 @@ function refreshUserSession(PDO $pdo, int $minIntervalSec = 5): void {
     $row = $stmt->fetch();
 
     if (!$row || $row['statut'] !== 'actif') {
-
-        $_SESSION = [];
-        if (ini_get('session.use_cookies')) {
-            $params = session_get_cookie_params();
-            setcookie(session_name(), '', time() - 42000,
-                $params['path'], $params['domain'], $params['secure'], $params['httponly']);
-        }
-        session_destroy();
+        corpo_destroy_session();
         return;
     }
 
@@ -756,12 +806,48 @@ function refreshUserSession(PDO $pdo, int $minIntervalSec = 5): void {
     loadMemberships($uid, $pdo);
 }
 
+// déconnexion propre (vide session + invalide le cookie)
+function corpo_destroy_session(): void
+{
+    $_SESSION = [];
+    if (ini_get('session.use_cookies')) {
+        $p = session_get_cookie_params();
+        if (PHP_VERSION_ID >= 70300) {
+            setcookie(session_name(), '', [
+                'expires'  => time() - 42000,
+                'path'     => $p['path'] ?? '/',
+                'domain'   => $p['domain'] ?? '',
+                'secure'   => (bool)($p['secure'] ?? false),
+                'httponly' => (bool)($p['httponly'] ?? true),
+                'samesite' => $p['samesite'] ?? 'Lax',
+            ]);
+        } else {
+            setcookie(
+                session_name(),
+                '',
+                time() - 42000,
+                $p['path'] ?? '/',
+                $p['domain'] ?? '',
+                (bool)($p['secure'] ?? false),
+                (bool)($p['httponly'] ?? true)
+            );
+        }
+    }
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        session_destroy();
+    }
+}
+
+// --- accès panel admin ---
+
+// vérifie si le type d'asso est une fédération (insensible accents/casse)
 function _isFederationType(?string $type): bool {
     if (!$type) return false;
     $norm = strtolower(trim($type));
     return $norm === 'fédération' || $norm === 'federation' || $norm === 'fed' || $norm === 'féderation';
 }
 
+// peut modifier le calendrier scolaire (admin_corpo, BDE, fédé)
 function canManageCalendrier(PDO $pdo): bool {
     if (isAdminCorpo()) return true;
     if (!isLoggedIn()) return false;
@@ -778,6 +864,7 @@ function canManageCalendrier(PDO $pdo): bool {
     return false;
 }
 
+// écoles accessibles dans le calendrier (toutes si admin_corpo, sinon ses BDE/fédés)
 function getEcolesCalendrier(PDO $pdo, array $ecolesAll): array {
     if (isAdminCorpo()) return $ecolesAll;
     $ecoles = [];
@@ -795,6 +882,7 @@ function getEcolesCalendrier(PDO $pdo, array $ecolesAll): array {
     return array_values(array_unique($ecoles));
 }
 
+// peut voir la section sport dans le panel admin
 function canAccessSportAdmin(PDO $pdo): bool {
     if (isAdminCorpo()) return true;
     if (!isLoggedIn()) return false;
@@ -810,6 +898,7 @@ function canAccessSportAdmin(PDO $pdo): bool {
     return false;
 }
 
+// peut créer une association (Corpo, admin BDE ou fédé)
 function canCreateAssociation(PDO $pdo): bool {
     if (isAdminCorpo()) {
         return true;
@@ -835,6 +924,7 @@ function canCreateAssociation(PDO $pdo): bool {
     return false;
 }
 
+// peut ajouter un sport sous ce BDS
 function canCreateSportUnderBds(PDO $pdo, int $bdsId): bool {
     if (isAdminCorpo()) {
         return true;
@@ -889,6 +979,8 @@ function canCreateSportUnderBds(PDO $pdo, int $bdsId): bool {
     return false;
 }
 
+// --- redirections ---
+
 function requireAdmin(): void {
     if (!isAdminCorpo()) {
         $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'] ?? '';
@@ -907,6 +999,7 @@ function requireMembreCorpo(): void {
     }
 }
 
+// ancien nom, redirige vers requireMembreCorpo
 function requireBureau(): void {
     requireMembreCorpo();
 }
@@ -918,6 +1011,8 @@ function requireLogin(): void {
         exit;
     }
 }
+
+// --- affichage ---
 
 function roleLabel(string $role): string {
     return match($role) {
@@ -952,6 +1047,8 @@ function structRoleBadge(string $role): string {
     }
     return '<span style="background:rgba(255,255,255,.06);color:#aaa;padding:2px 8px;border-radius:999px;font-size:.7rem">Adhérent</span>';
 }
+
+// --- CSRF ---
 
 function csrf_token(): string {
     if (empty($_SESSION['_csrf_token'])) {

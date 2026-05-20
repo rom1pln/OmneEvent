@@ -1,5 +1,9 @@
 <?php
-
+/**
+ * mes-actualites.php
+ * Flux d'actus personnalisé : Corpo + structures de l'utilisateur.
+ * Faut être connecté pour voir ça, logique.
+ */
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/i18n.php';
@@ -12,6 +16,7 @@ if (!isLoggedIn()) {
 
 $userId = (int)$_SESSION['user_id'];
 
+// ── Actus Corpo (pas liées à une structure) ──────────────────
 $stmtCorpo = $pdo->prepare(
     "SELECT a.*, 'Corpo Omnes' AS source_nom, 'corpo' AS source_type, NULL AS source_slug
      FROM actualites a
@@ -21,6 +26,7 @@ $stmtCorpo = $pdo->prepare(
 $stmtCorpo->execute();
 $actusCorpo = $stmtCorpo->fetchAll();
 
+// ── Actus des assos/BDE/BDS de l'user ───────────────────────
 $stmtAsso = $pdo->prepare(
     "SELECT a.*, s.nom AS source_nom, sm.structure_type AS source_type, s.slug AS source_slug
      FROM actualites a
@@ -35,6 +41,7 @@ $stmtAsso = $pdo->prepare(
 $stmtAsso->execute([$userId]);
 $actusAsso = $stmtAsso->fetchAll();
 
+// ── Actus des sports de l'user ───────────────────────────────
 $stmtSport = $pdo->prepare(
     "SELECT a.*, sp.nom AS source_nom, 'sport' AS source_type, sp.slug AS source_slug
      FROM actualites a
@@ -49,6 +56,7 @@ $stmtSport = $pdo->prepare(
 $stmtSport->execute([$userId]);
 $actusSport = $stmtSport->fetchAll();
 
+// ── Fusionner et trier par date ──────────────────────────────
 $all = array_merge($actusCorpo, $actusAsso, $actusSport);
 usort($all, fn($a, $b) => strtotime($b['created_at']) - strtotime($a['created_at']));
 
@@ -122,13 +130,14 @@ require_once __DIR__ . '/includes/header.php';
           </div>
         </article>
         <?php endforeach; ?>
-      </div>    <?php endif; ?>
+      </div><!-- /.mes-actu-feed -->
+    <?php endif; ?>
 
   </section>
 </main>
 
 <script>
-
+// Filtre par source
 document.querySelectorAll('.actu-filter').forEach(btn => {
   btn.addEventListener('click', function () {
     document.querySelectorAll('.actu-filter').forEach(b => b.classList.remove('active'));

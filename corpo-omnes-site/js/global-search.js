@@ -1,4 +1,4 @@
-
+// Overlay de recherche globale (déclenché depuis le header)
 (function () {
   const overlay = document.getElementById('global-search');
   const input = document.getElementById('global-search-input');

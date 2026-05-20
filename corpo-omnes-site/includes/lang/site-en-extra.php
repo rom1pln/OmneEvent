@@ -76,7 +76,14 @@ return [
     'evt.cta_assos' => 'Browse associations',
     'evt.flash_ok' => 'Registration confirmed!',
     'evt.flash_wait' => 'You are on the waiting list.',
+    'evt.flash_wait_pos' => 'You are on the waiting list (position #%d).',
+    'evt.flash_already' => 'You are already registered for this event.',
+    'evt.flash_err' => 'Could not complete registration.',
     'evt.flash_out' => 'You have been unregistered.',
+    'evt.btn_join_waitlist' => 'Join the waiting list',
+    'evt.waitlist_auto' => 'You will be registered automatically if a spot opens up.',
+    'evt.waitlist_help' => 'No payment now. If someone drops out, spots are filled in order of signup.',
+    'evt.waitlist_promoted_pay' => 'A spot opened up for you — complete payment to receive your ticket.',
     'evt.registered' => '✓ Registered',
     'evt.waitlist_badge' => '⌛ Waiting list',
     'evt.empty_upcoming' => 'No upcoming events at the moment.',
@@ -288,6 +295,7 @@ return [
     'apr.cta_insta' => 'Follow on Instagram',
     'apr.btn_guide' => 'Site guide',
 
+    // site guide (sous-menu The Corpo)
     'guide.meta_title' => 'Site guide & features',
     'guide.crumb' => 'Site guide',
     'guide.hero_h1' => 'How to use this website',
@@ -331,11 +339,13 @@ return [
     'guide.cta_btn_shop' => 'Open the shop',
     'guide.cta_btn_corpo' => 'Meet the Corpo',
 
+    // clés communes réutilisées partout
     'common.back_to_events' => '← Back to events',
     'common.back'           => '← Back',
     'common.add_to_calendar'      => 'Add to my calendar',
     'common.add_to_calendar_sub'  => 'Get a reminder before the event',
 
+    // pages légales (mentions légales, CGU…)
     'legal.crumb'           => 'Legal information',
     'legal.updated_on'      => 'Last updated',
     'legal.toc_title'       => 'Contents',
@@ -359,6 +369,7 @@ return [
     'legal.cgu.meta_title'      => 'Terms of Use',
     'legal.cgu.hero_sub'        => 'Rules for using the Corpo Omnes Lyon website and services - rights, obligations and user responsibilities.',
 
+    // bannière et modal de consentement cookies
     'cookies.banner.title'      => 'We care about your privacy',
     'cookies.banner.text'       => 'This website uses cookies to ensure proper operation, measure audience and offer you a tailored experience. You can accept, refuse or customise your preferences at any time.',
     'cookies.banner.accept_all' => 'Accept all',

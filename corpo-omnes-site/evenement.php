@@ -10,6 +10,7 @@ require_once 'includes/paiements.php';
 $id = (int)($_GET['id'] ?? 0);
 if (!$id) { header('Location: evenements.php'); exit; }
 
+// charge l'event depuis la BDD
 $st = $pdo->prepare("SELECT * FROM evenements WHERE id=? AND statut='publie'");
 $st->execute([$id]);
 $ev = $st->fetch();
@@ -20,50 +21,22 @@ if (!$ev) {
     exit;
 }
 
-$userId      = isLoggedIn() ? (int)$_SESSION['user_id'] : 0;
-$canSeeEvt   = evt_user_can_see_event($pdo, $ev, $userId ?: null);
-if (!$canSeeEvt) {
-    require_once 'includes/header.php';
-    $structSlug = null;
-    if (!empty($ev['structure_id']) && ($ev['structure_type'] ?? '') !== 'corpo') {
-        if (($ev['structure_type'] ?? '') === 'sport') {
-            $st = $pdo->prepare('SELECT slug FROM sports WHERE id=?');
-        } else {
-            $st = $pdo->prepare('SELECT slug FROM associations WHERE id=?');
-        }
-        $st->execute([(int)$ev['structure_id']]);
-        $structSlug = $st->fetchColumn() ?: null;
-    }
-    echo '<main class="container" style="padding:4rem 0;max-width:560px">';
-    echo '<div class="flash flash--warn">' . htmlspecialchars(evt_visibilite_message($ev)) . '</div>';
-    if ($userId && $structSlug) {
-        $structUrl = (($ev['structure_type'] ?? '') === 'sport')
-            ? 'structure.php?sport=' . urlencode($structSlug)
-            : 'structure.php?slug=' . urlencode($structSlug);
-        echo '<p style="margin-top:var(--s4)"><a href="' . htmlspecialchars($structUrl) . '" class="btn btn--primary">Voir sur la page de l\'association</a></p>';
-        echo '<p class="evt-detail-help" style="margin-top:var(--s2)"><a href="mes-assos.php">Mes associations</a></p>';
-    } elseif (!$userId) {
-        echo '<p style="margin-top:var(--s4)"><a href="login.php?next=' . urlencode('evenement.php?id=' . $id) . '" class="btn btn--primary">Se connecter</a></p>';
-    }
-    echo '<p style="margin-top:var(--s3)"><a href="evenements.php">← Retour aux événements</a></p>';
-    echo '</main>';
-    require_once 'includes/footer.php';
-    exit;
-}
-
 $title       = $ev['titre'];
+$userId      = isLoggedIn() ? (int)$_SESSION['user_id'] : 0;
 $flash       = '';
 $mode        = evt_normalize_mode($ev['mode_inscription'] ?? 'aucune');
 $prix        = (float)($ev['prix'] ?? 0);
 $places      = (int)($ev['places'] ?? 0);
 $inscrits    = (int)($ev['inscrits'] ?? 0);
-$dispoSlots  = $places > 0 ? max(0, $places - $inscrits) : null;
-$complet     = $places > 0 && $inscrits >= $places;
+$placesState = billet_event_places_state($pdo, $id);
+$dispoSlots  = $placesState['dispo'];
+$complet     = $placesState['complet'];
+$inscrits    = $placesState['actifs'];
 $requireLogin = evt_mode_requires_login($mode);
 $isPaid       = evt_mode_is_paid($mode);
 $collectsContact = evt_mode_collects_contact($mode);
 
-
+// si connecté, on récupère les infos de l'user pour vérifier l'éligibilité
 $currentUser = null;
 if ($userId) {
     $u = $pdo->prepare("SELECT id, email, nom, prenom, ecole, promotion FROM users WHERE id=?");
@@ -71,17 +44,18 @@ if ($userId) {
     $currentUser = $u->fetch() ?: null;
 }
 
-
-$eligibilite = evt_user_can_register($ev, $currentUser, $pdo);
+// vérifie si l'user peut s'inscrire (école, externes…)
+$eligibilite = evt_user_can_register($ev, $currentUser);
 $fenetreInsc = evt_inscriptions_fenetre($ev);
 
-
+// tarifs et codes promo pour les modes billetterie
 $tarifsAll = $isPaid ? tarifs_pour_event($pdo, $id) : [];
 $tarifsDispo = tarifs_disponibles($tarifsAll, $currentUser);
 
 /* Code promo pré-rempli via URL */
 $promoFromUrl = trim((string)($_GET['promo'] ?? ''));
 
+// mes billets pour cet event
 $mesBillets = [];
 if ($userId) {
     $st = $pdo->prepare(
@@ -95,6 +69,7 @@ if ($userId) {
 // Billets invités affichés après paiement (récupérés via param tx)
 $billetsInvite = [];
 
+// crée 1 ou N billets gratuits
 function evt_create_free_tickets(PDO $pdo, int $eventId, ?int $userId, array $contact, int $qte = 1): array {
     $ids = [];
     for ($i = 0; $i < max(1, $qte); $i++) {
@@ -104,10 +79,11 @@ function evt_create_free_tickets(PDO $pdo, int $eventId, ?int $userId, array $co
     return $ids;
 }
 
+// gestion des actions POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = $_POST['action'] ?? '';
 
-    
+    // inscription gratuite par email
     if ($act === 'inscrire_email' && $mode === 'email') {
         $email   = trim($_POST['email']  ?? '');
         $nom     = trim($_POST['nom']    ?? '');
@@ -130,11 +106,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $ids = evt_create_free_tickets($pdo, $id, $userId ?: null,
                     ['email' => $email, 'nom' => $nom, 'prenom' => $prenom], 1);
                 if (!empty($ids)) {
-                    // Charge les billets fraîchement créés pour les afficher
                     $ph = implode(',', array_map('intval', $ids));
                     $billetsInvite = $pdo->query("SELECT * FROM inscriptions_evenement WHERE id IN ($ph)")->fetchAll();
                     @billet_send_mail_for_ids($pdo, $ids);
-                    $flash = '<div class="flash flash--ok">Inscription confirmée. Ton billet a été envoyé à <strong>' . htmlspecialchars($email) . '</strong> et reste disponible ci-dessous.</div>';
+                    $first = $billetsInvite[0] ?? [];
+                    if (($first['statut'] ?? '') === 'liste_attente') {
+                        $pos = billet_waitlist_position($pdo, (int)$first['id']);
+                        $posTxt = $pos ? ' (position #' . $pos . ')' : '';
+                        $flash = '<div class="flash flash--ok">Tu es en liste d\'attente' . htmlspecialchars($posTxt) . '. '
+                               . 'Tu seras inscrit·e automatiquement si une place se libère. Un email de confirmation t\'a été envoyé (sans billet tant qu\'une place n\'est pas libérée).</div>';
+                    } else {
+                        $flash = '<div class="flash flash--ok">Inscription confirmée. Ton billet a été envoyé à <strong>' . htmlspecialchars($email) . '</strong> et reste disponible ci-dessous.</div>';
+                    }
                 } else {
                     $flash = '<div class="flash flash--err">' . htmlspecialchars(
                         evt_inscriptions_fenetre_message($fenetreInsc) ?: 'Impossible de finaliser l\'inscription.'
@@ -144,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    
+    // inscription gratuite via connexion
     if ($act === 'inscrire_connexion' && $mode === 'connexion' && $userId) {
         if (!$fenetreInsc['open']) {
             $flash = '<div class="flash flash--err">' . htmlspecialchars(evt_inscriptions_fenetre_message($fenetreInsc)) . '</div>';
@@ -166,6 +149,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ], 0.0, 'aucun', null);
             if ($newId) {
                 @billet_send_mail_for_ids($pdo, [$newId]);
+                $stIns = $pdo->prepare('SELECT statut FROM inscriptions_evenement WHERE id = ?');
+                $stIns->execute([$newId]);
+                if ((string)$stIns->fetchColumn() === 'liste_attente') {
+                    $_SESSION['evt_flash_wait'] = billet_waitlist_position($pdo, $newId);
+                }
                 header('Location: evenement.php?id=' . $id . '#mes-billets'); exit;
             }
             $flash = '<div class="flash flash--err">' . htmlspecialchars(
@@ -175,7 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }  /* fin else $eligibilite['ok'] */
     }
 
-    
+    // achat - modes billetterie
     if ($act === 'acheter' && $isPaid) {
         // Mode "billetterie_connexion" exige une session
         if ($mode === 'billetterie_connexion' && !$userId) {
@@ -200,6 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $qte = max(1, min((int)($ev['max_billets_par_personne'] ?: 1), (int)($_POST['quantite'] ?? 1)));
 
+            // tarif sélectionné
             $tarifChoisi = null;
             $prixUnitaire = $prix;
             if (!empty($tarifsDispo)) {
@@ -214,6 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            // code promo
             $codePromoEntered = strtoupper(trim($_POST['code_promo'] ?? ''));
             $codeAppliqued = null;
             $reductionTotale = 0.0;
@@ -234,11 +224,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $flash = '<div class="flash flash--err">Email invalide.</div>';
             } elseif ($mode === 'billetterie_email' && ($nom === '' || $prenom === '')) {
                 $flash = '<div class="flash flash--err">Merci de renseigner ton nom et ton prénom.</div>';
-            } elseif ($complet) {
-                $flash = '<div class="flash flash--warn">Événement complet.</div>';
+            } elseif ($complet && !billet_find_unpaid_confirmed($pdo, $id, $userId ?: null, $email)) {
+                $flash = '<div class="flash flash--warn">Événement complet. Rejoins la <a href="#inscription">liste d\'attente</a> ci-dessous.</div>';
             } else {
+                $existingInsId = billet_find_unpaid_confirmed($pdo, $id, $userId ?: null, $email);
+                if ($existingInsId) {
+                    $qte = 1;
+                }
                 $total = $prixUnitaire * $qte;
 
+                // frais de paiement si à charge client
                 //    facturé au client. Sinon, frais déduits du net côté association.
                 $fraisAuClient = $tarifChoisi ? ((int)($tarifChoisi['frais_a_charge_client'] ?? 0) === 1) : false;
                 $totalAvecFrais = $total;
@@ -259,7 +254,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $id,
                     paiement_is_mock($providerChoisi) ? ($providerChoisi === 'stripe' ? 'mock_stripe' : 'mock') : $providerChoisi,
                     $totalAvecFrais, 'EUR', 'init', $email, $userId ?: null,
-                    json_encode([
+                    json_encode(array_filter([
                         'nom'=>$nom, 'prenom'=>$prenom, 'quantite'=>$qte,
                         'tarif_id'=>$tarifChoisi ? (int)$tarifChoisi['id'] : null,
                         'code_promo'=>$codeAppliqued ? $codeAppliqued['code'] : null,
@@ -269,11 +264,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'frais'=>$feeInfo['frais'],
                         'frais_a_charge_client'=>$fraisAuClient,
                         'provider'=>$providerChoisi,
-                    ], JSON_UNESCAPED_UNICODE),
+                        'inscription_id'=>$existingInsId ?? null,
+                    ], fn($v) => $v !== null), JSON_UNESCAPED_UNICODE),
                 ]);
                 $txId = (int)$pdo->lastInsertId();
                 $reference = 'evt' . $id . '-tx' . $txId;
 
+                // URL de retour SumUp
                 // On préfère SITE_URL (.env) pour avoir une URL fiable et HTTPS, sinon
                 // on reconstruit en tenant compte des proxys (Cloudflare, 42web.io…).
                 $siteUrl = trim((string)corpo_env('SITE_URL', ''));
@@ -307,7 +304,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    
+    // file d'attente (event complet)
+    if ($act === 'rejoindre_file_attente' && in_array($mode, ['email', 'connexion', 'billetterie_email', 'billetterie_connexion'], true)) {
+        if ($mode === 'billetterie_connexion' && !$userId) {
+            $flash = '<div class="flash flash--err">Tu dois être connecté·e pour rejoindre la liste d\'attente.</div>';
+        } elseif (!$fenetreInsc['open']) {
+            $flash = '<div class="flash flash--err">' . htmlspecialchars(evt_inscriptions_fenetre_message($fenetreInsc)) . '</div>';
+        } elseif (!$eligibilite['ok']) {
+            $flash = '<div class="flash flash--err">Inscription non autorisée pour ton profil.</div>';
+        } elseif (!$complet) {
+            $flash = '<div class="flash flash--warn">Des places sont encore disponibles — inscris-toi normalement.</div>';
+        } else {
+            if ($userId) {
+                $u = $pdo->prepare('SELECT email, nom, prenom FROM users WHERE id=?');
+                $u->execute([$userId]);
+                $usr = $u->fetch() ?: [];
+                $email  = $usr['email']  ?? '';
+                $nom    = $usr['nom']    ?? '';
+                $prenom = $usr['prenom'] ?? '';
+            } else {
+                $email  = trim($_POST['email']  ?? '');
+                $nom    = trim($_POST['nom']    ?? '');
+                $prenom = trim($_POST['prenom'] ?? '');
+            }
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $flash = '<div class="flash flash--err">Email invalide.</div>';
+            } elseif ($mode === 'billetterie_email' && ($nom === '' || $prenom === '')) {
+                $flash = '<div class="flash flash--err">Merci de renseigner ton nom et ton prénom.</div>';
+            } else {
+                $existsSql = $userId
+                    ? 'SELECT id FROM inscriptions_evenement WHERE evenement_id=? AND user_id=? AND statut IN (\'confirme\',\'liste_attente\',\'en_attente\')'
+                    : 'SELECT id FROM inscriptions_evenement WHERE evenement_id=? AND email=? AND statut IN (\'confirme\',\'liste_attente\',\'en_attente\')';
+                $exists = $pdo->prepare($existsSql);
+                $exists->execute($userId ? [$id, $userId] : [$id, $email]);
+                if ($exists->fetchColumn()) {
+                    $flash = '<div class="flash flash--warn">Tu es déjà inscrit·e ou déjà en liste d\'attente pour cet événement.</div>';
+                } else {
+                    $newId = billet_create($pdo, $id, $userId ?: null, [
+                        'email' => $email, 'nom' => $nom, 'prenom' => $prenom,
+                    ], 0.0, 'aucun', null);
+                    if ($newId) {
+                        @billet_send_mail_for_ids($pdo, [$newId]);
+                        $pos = billet_waitlist_position($pdo, $newId);
+                        $posTxt = $pos ? ' (position #' . (int)$pos . ')' : '';
+                        $flash = '<div class="flash flash--ok">Tu es en liste d\'attente' . htmlspecialchars($posTxt) . '. '
+                               . 'Tu seras inscrit·e automatiquement dès qu\'une place se libère.</div>';
+                        if ($userId) {
+                            $st = $pdo->prepare(
+                                "SELECT * FROM inscriptions_evenement
+                                  WHERE evenement_id=? AND user_id=?
+                                    AND statut IN ('confirme','liste_attente','en_attente')
+                                  ORDER BY id DESC"
+                            );
+                            $st->execute([$id, $userId]);
+                            $mesBillets = $st->fetchAll();
+                        } else {
+                            $stInv = $pdo->prepare('SELECT * FROM inscriptions_evenement WHERE id = ?');
+                            $stInv->execute([$newId]);
+                            $rowInv = $stInv->fetch();
+                            if ($rowInv) {
+                                $billetsInvite = [$rowInv];
+                            }
+                        }
+                        $placesState = billet_event_places_state($pdo, $id);
+                        $dispoSlots  = $placesState['dispo'];
+                        $complet     = $placesState['complet'];
+                    } else {
+                        $flash = '<div class="flash flash--err">Impossible de rejoindre la liste d\'attente.</div>';
+                    }
+                }
+            }
+        }
+    }
+
+    // annulation d'un billet
     if ($act === 'annuler_billet' && $userId) {
         $insId = (int)($_POST['inscription_id'] ?? 0);
         $check = $pdo->prepare("SELECT id FROM inscriptions_evenement WHERE id=? AND user_id=?");
@@ -322,6 +392,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// callback paiement (SumUp ou Stripe selon le montant)
 if (!empty($_GET['tx'])) {
     $txId = (int)$_GET['tx'];
     $tx = $pdo->prepare("SELECT * FROM paiement_transactions WHERE id=? AND evenement_id=?");
@@ -343,25 +414,8 @@ if (!empty($_GET['tx'])) {
         if ($status === 'paid') {
             $pdo->prepare("UPDATE paiement_transactions SET statut='paye' WHERE id=?")->execute([$txId]);
             $payload = json_decode($transaction['payload'] ?? '{}', true) ?: [];
-            $qte = max(1, (int)($payload['quantite'] ?? 1));
-            // Le prix par billet stocké sur l'inscription doit être celui du tarif
-            // (hors frais), même quand les frais sont à la charge du client.
-            // - Si le payload stocke `prix_unitaire_billet`, on l'utilise.
-            // - Sinon (anciennes tx), on retombe sur montant/qte.
-            $unit = isset($payload['prix_unitaire_billet'])
-                ? (float)$payload['prix_unitaire_billet']
-                : (float)$transaction['montant'] / $qte;
-            $tarifId = !empty($payload['tarif_id']) ? (int)$payload['tarif_id'] : null;
             $codePromo = $payload['code_promo'] ?? null;
-            $createdIds = [];
-            for ($i = 0; $i < $qte; $i++) {
-                $bid = billet_create($pdo, $id, $transaction['user_id'] ? (int)$transaction['user_id'] : null, [
-                    'email'  => $transaction['email'],
-                    'nom'    => $payload['nom']    ?? '',
-                    'prenom' => $payload['prenom'] ?? '',
-                ], $unit, 'paye', $transaction['provider'], $tarifId, $codePromo);
-                if ($bid) $createdIds[] = $bid;
-            }
+            $createdIds = billet_fulfill_from_transaction($pdo, $transaction, $payload);
             // Incrémente le compteur du code promo
             if ($codePromo && !empty($createdIds)) {
                 try {
@@ -411,6 +465,7 @@ if (!empty($_GET['tx'])) {
     }
 }
 
+// détecte une transaction en_attente sans billet créé
 //    sans paramètre ?tx=… dans l'URL (l'utilisateur est revenu directement,
 //    typiquement après la page blanche de SumUp). On lui propose de vérifier.
 if (empty($_GET['tx']) && $userId) {
@@ -429,17 +484,59 @@ if (empty($_GET['tx']) && $userId) {
     } catch (Throwable $e) { /* ignore */ }
 }
 
+if (!empty($_SESSION['evt_flash_wait'])) {
+    $pos = (int)$_SESSION['evt_flash_wait'];
+    unset($_SESSION['evt_flash_wait']);
+    $flash = '<div class="flash flash--ok">Tu es en liste d\'attente (position #' . $pos . '). '
+           . 'Tu seras inscrit·e automatiquement si une place se libère.</div>';
+}
+
+$onWaitlist = false;
+$needsPayAfterPromo = false;
+foreach ($mesBillets as $b) {
+    if (($b['statut'] ?? '') === 'liste_attente') {
+        $onWaitlist = true;
+    }
+    if (($b['statut'] ?? '') === 'confirme' && $isPaid && $prix > 0
+        && ($b['paiement_statut'] ?? 'aucun') !== 'paye' && (float)($b['prix_paye'] ?? 0) <= 0) {
+        $needsPayAfterPromo = true;
+    }
+}
+
 require_once 'includes/header.php';
 
 $ecolesInv  = json_decode($ev['ecoles_invitees'] ?? '[]', true) ?: [];
-try {
-    $dateFmt = !empty($ev['date']) ? (new DateTime($ev['date']))->format('l j F Y') : '-';
-} catch (Throwable $e) { $dateFmt = (string)($ev['date'] ?? '-'); }
-try {
-    $dateFinFmt = !empty($ev['date_fin']) ? (new DateTime($ev['date_fin']))->format('l j F Y') : null;
-} catch (Throwable $e) { $dateFinFmt = null; }
+$dateFmt = !empty($ev['date']) ? corpo_format_date_long((string)$ev['date'], true) : '-';
+$dateFinFmt = !empty($ev['date_fin']) ? corpo_format_date_long((string)$ev['date_fin'], true) : null;
 
+// carte liste d'attente (pas de QR)
+function render_waitlist_card(array $b, array $ev, ?int $position = null): string
+{
+    $name = trim(($b['prenom'] ?? '') . ' ' . ($b['nom'] ?? '')) ?: ($b['email'] ?? '');
+    $dateFmt = !empty($ev['date']) ? corpo_format_date_long((string)$ev['date'], false) : '';
+    $html = '<div class="ticket ticket--waitlist" id="waitlist-' . (int)$b['id'] . '">';
+    $html .= '<div class="ticket__body" style="width:100%">';
+    $html .= '<span class="ticket__statut ticket__statut--liste_attente">' . htmlspecialchars(corpo_t('evt.waitlist_badge')) . '</span>';
+    if ($position) {
+        $html .= '<p style="margin:.5rem 0 0;font-weight:700">#' . (int)$position . '</p>';
+    }
+    $html .= '<strong style="display:block;margin-top:var(--s2)">' . htmlspecialchars($ev['titre']) . '</strong>';
+    if ($dateFmt) {
+        $html .= '<p>' . htmlspecialchars($dateFmt) . '</p>';
+    }
+    if ($name) {
+        $html .= '<p style="color:var(--text-muted);font-size:.85rem">' . htmlspecialchars($name) . '</p>';
+    }
+    $html .= '<p class="evt-waitlist-hint" style="margin-top:var(--s3)">' . htmlspecialchars(corpo_t('evt.waitlist_auto')) . '</p>';
+    $html .= '</div></div>';
+    return $html;
+}
+
+// affiche un billet (carte) avec son QR
 function render_ticket(array $b, array $ev): string {
+    if (($b['statut'] ?? '') === 'liste_attente') {
+        return '';
+    }
     $stat = $b['statut'];
     $qrUrl = !empty($b['qr_token']) ? billet_qr_image_url($b['qr_token'], 220) : null;
     $qrBig = !empty($b['qr_token']) ? billet_qr_image_url($b['qr_token'], 600) : null;
@@ -448,9 +545,7 @@ function render_ticket(array $b, array $ev): string {
         'liste_attente' => '⏳ Liste d\'attente',
         'en_attente'    => '⏳ En attente',
     ][$stat] ?? $stat;
-    try {
-        $dateFmt = !empty($ev['date']) ? (new DateTime($ev['date']))->format('l j F Y') : '';
-    } catch (Throwable $e) { $dateFmt = (string)($ev['date'] ?? ''); }
+    $dateFmt = !empty($ev['date']) ? corpo_format_date_long((string)$ev['date'], false) : '';
     $name = trim(($b['prenom'] ?? '') . ' ' . ($b['nom'] ?? '')) ?: ($b['email'] ?? '');
     $bid  = (int)$b['id'];
     $codeShort = !empty($b['qr_token']) ? strtoupper(substr($b['qr_token'], 0, 8)) : '';
@@ -459,7 +554,7 @@ function render_ticket(array $b, array $ev): string {
 
     $html  = '<div class="ticket" id="ticket-' . $bid . '" data-ticket-id="' . $bid . '" data-qr-token="' . htmlspecialchars($b['qr_token'] ?? '') . '">';
 
-    
+    // header visible seulement à l'impression
     $html .= '<div class="ticket__print-header">';
     $html .= '<div class="ticket__print-brand">';
     $html .= '<span class="ticket__print-brand-name">CORPO OMNES</span>';
@@ -533,7 +628,7 @@ function render_ticket(array $b, array $ev): string {
 
     $html .= '</div>'; /* fin .ticket__body */
 
-    
+    // infos visibles à l'impression (hors .ticket__body)
     $html .= '<dl class="ticket__print-info">';
     $html .= '<div><dt>Titulaire</dt><dd>' . htmlspecialchars($name ?: '-') . '</dd></div>';
     $html .= '<div><dt>Événement</dt><dd>' . htmlspecialchars($ev['titre']) . '</dd></div>';
@@ -557,7 +652,7 @@ function render_ticket(array $b, array $ev): string {
 ?>
 
 <?php
-  
+  // URLs "ajouter à l'agenda" (Google / Apple / Outlook / ICS) - try/catch si date mal formée
   $addcalAvailable = false;
   $gcalUrl = $outlookUrl = $icsUrl = '#';
   try {
@@ -605,15 +700,29 @@ function render_ticket(array $b, array $ev): string {
 
     <?= $flash ?>
 
-    <?php $bannSrc = evt_banniere_src($ev['banniere'] ?? null); ?>
-    <?php if ($bannSrc): ?>
-    <figure class="evt-detail-banniere">
-      <img src="<?= htmlspecialchars($bannSrc) ?>" alt="" loading="eager" decoding="async">
-    </figure>
+    <?php $evtBanniereUrl = evt_media_url($ev['banniere'] ?? null, $base ?? ''); ?>
+
+    <?php if ($evtBanniereUrl): ?>
+    <header class="evt-detail-cover">
+      <div class="evt-detail-cover__media">
+        <img src="<?= htmlspecialchars($evtBanniereUrl) ?>" alt="" loading="eager" decoding="async">
+      </div>
+      <div class="evt-detail-cover__shade" aria-hidden="true"></div>
+      <div class="evt-detail-cover__content">
+        <div class="evt-detail-cover__meta">
+          <?= evt_icon_html($ev['icon'] ?? null, 'evt-emoji evt-emoji--lg') ?>
+          <?php if (!empty($ev['type'])): ?>
+            <span class="evt-detail-cover__type"><?= htmlspecialchars($ev['type']) ?></span>
+          <?php endif; ?>
+        </div>
+        <h1 class="evt-detail-cover__title"><?= htmlspecialchars($ev['titre']) ?></h1>
+        <p class="evt-detail-cover__orga">par <strong><?= htmlspecialchars($ev['organisateur']) ?></strong></p>
+      </div>
+    </header>
     <?php endif; ?>
 
     <?php if ($addcalAvailable): ?>
-    
+    <!-- bandeau "ajouter à l'agenda" -->
     <section class="evt-addcal-banner" aria-label="<?= htmlspecialchars($lblAddCal) ?>">
       <div class="evt-addcal-banner__head">
         <span class="evt-addcal-banner__icon" aria-hidden="true">📅</span>
@@ -626,14 +735,11 @@ function render_ticket(array $b, array $ev): string {
         <a href="<?= htmlspecialchars($gcalUrl) ?>" target="_blank" rel="noopener" class="evt-addcal__btn">
           <span aria-hidden="true">🅖</span> Google
         </a>
-        <a href="<?= htmlspecialchars($icsUrl) ?>" class="evt-addcal__btn">
-          <span aria-hidden="true">🍎</span> Apple
+        <a href="<?= htmlspecialchars($icsUrl) ?>" class="evt-addcal__btn" download="evenement-<?= (int)$id ?>.ics">
+          <span aria-hidden="true">⤓</span> <?= htmlspecialchars(corpo_t('mes_evt.btn_ics')) ?>
         </a>
         <a href="<?= htmlspecialchars($outlookUrl) ?>" target="_blank" rel="noopener" class="evt-addcal__btn">
           <span aria-hidden="true">📧</span> Outlook
-        </a>
-        <a href="<?= htmlspecialchars($icsUrl) ?>" class="evt-addcal__btn">
-          <span aria-hidden="true">⤓</span> .ics
         </a>
       </div>
     </section>
@@ -642,12 +748,16 @@ function render_ticket(array $b, array $ev): string {
     <div class="evt-detail-grid">
       <!-- Colonne gauche : informations -->
       <article class="evt-detail-main">
+        <?php if (!$evtBanniereUrl): ?>
         <div class="evt-detail-hero">
-          <?= evt_render_icon($ev['icon'] ?? null) ?>
-          <span class="evt-detail-type"><?= htmlspecialchars($ev['type'] ?? '') ?></span>
+          <span class="evt-detail-icon"><?= evt_icon_html($ev['icon'] ?? null) ?></span>
+          <?php if (!empty($ev['type'])): ?>
+            <span class="evt-detail-type"><?= htmlspecialchars($ev['type']) ?></span>
+          <?php endif; ?>
         </div>
         <h1 class="evt-detail-title"><?= htmlspecialchars($ev['titre']) ?></h1>
         <p class="evt-detail-orga">par <strong><?= htmlspecialchars($ev['organisateur']) ?></strong></p>
+        <?php endif; ?>
 
         <dl class="evt-detail-meta">
           <div><dt>📅 Date</dt><dd><?= ucfirst($dateFmt) ?><?= $dateFinFmt ? ' → ' . ucfirst($dateFinFmt) : '' ?></dd></div>
@@ -684,30 +794,20 @@ function render_ticket(array $b, array $ev): string {
       </article>
 
       <!-- Colonne droite : inscription / billetterie -->
-      <aside class="evt-detail-aside">
+      <aside class="evt-detail-aside" id="inscription">
         <div class="evt-detail-card">
-          <?php  ?>
+          <?php /* bandeau d'éligibilité */ ?>
           <?php if ($mode !== 'aucune' && $mode !== 'externe' && !$eligibilite['ok']): ?>
             <?php
               $msg = match($eligibilite['reason']) {
                 'login_required'             => "Cet événement est réservé aux membres connectés.",
                 'login_required_no_externes' => "Cet événement est réservé aux étudiants des écoles invitées - connecte-toi pour vérifier ton accès.",
                 'ecole_non_eligible'         => "Désolé, cet événement est réservé aux écoles invitées et la tienne n'en fait pas partie.",
-                'membres_structure_required' => evt_inscription_membres_message($ev),
                 default                      => "Inscription non disponible.",
               };
             ?>
             <div class="flash flash--warn" style="margin:0 0 var(--s3)"><?= $msg ?></div>
-            <?php if ($eligibilite['reason'] === 'membres_structure_required'): ?>
-              <?php if (!$userId): ?>
-                <a href="login.php?next=<?= urlencode('evenement.php?id=' . $id) ?>" class="btn btn--primary btn--full">Se connecter</a>
-                <p class="evt-detail-help"><a href="register.php">Pas encore de compte ?</a></p>
-              <?php else: ?>
-                <p class="evt-detail-help">Tu dois être adhérent ou membre de la structure pour t'inscrire.</p>
-                <a href="associations.php" class="btn btn--primary btn--full">Rejoindre une association</a>
-                <p class="evt-detail-help" style="margin-top:var(--s2)"><a href="mes-assos.php">Mes associations</a></p>
-              <?php endif; ?>
-            <?php elseif (in_array($eligibilite['reason'], ['login_required', 'login_required_no_externes'], true)): ?>
+            <?php if (in_array($eligibilite['reason'], ['login_required', 'login_required_no_externes'], true)): ?>
               <a href="login.php?next=<?= urlencode('evenement.php?id=' . $id) ?>" class="btn btn--primary btn--full">Se connecter</a>
               <p class="evt-detail-help"><a href="register.php">Pas encore de compte ?</a></p>
             <?php endif; ?>
@@ -715,12 +815,12 @@ function render_ticket(array $b, array $ev): string {
           <?php if ($mode !== 'aucune' && $mode !== 'externe' && !$fenetreInsc['open']): ?>
             <div class="evt-detail-mode-badge"><?= $fenetreInsc['status'] === 'before' ? 'Inscriptions à venir' : 'Inscriptions closes' ?></div>
             <div class="flash flash--warn" style="margin:0"><?= htmlspecialchars(evt_inscriptions_fenetre_message($fenetreInsc)) ?></div>
-          <?php  ?>
+          <?php /* mode sans inscription */ ?>
           <?php elseif ($mode === 'aucune'): ?>
             <div class="evt-detail-mode-badge">Événement ouvert</div>
             <p class="evt-detail-help">Pas d'inscription requise - viens simplement le jour J.</p>
 
-          <?php  ?>
+          <?php /* mode email - gratuit, sans compte */ ?>
           <?php elseif ($mode === 'email'): ?>
             <div class="evt-detail-mode-badge">Inscription par email</div>
             <?php if (!empty($ev['inscription_message'])): ?>
@@ -745,7 +845,7 @@ function render_ticket(array $b, array $ev): string {
               <p class="evt-detail-help">Un billet (QR code) te sera remis immédiatement.</p>
             </form>
 
-          <?php  ?>
+          <?php /* mode connexion - gratuit, compte requis */ ?>
           <?php elseif ($mode === 'connexion'): ?>
             <div class="evt-detail-mode-badge">Inscription par connexion</div>
             <?php if (!empty($ev['inscription_message'])): ?>
@@ -761,8 +861,20 @@ function render_ticket(array $b, array $ev): string {
               <a href="login.php?next=<?= urlencode('evenement.php?id=' . $id) ?>" class="btn btn--primary btn--full">Se connecter pour s'inscrire</a>
               <p class="evt-detail-help"><a href="register.php">Pas encore de compte ?</a></p>
             <?php elseif (!empty($mesBillets)): ?>
-              <p class="flash flash--ok" style="margin:0">✓ Tu es <?= $mesBillets[0]['statut'] === 'liste_attente' ? "en liste d'attente" : "inscrit·e" ?>.</p>
-              <a href="api/event-ics.php?id=<?= $id ?>" class="btn btn--ghost btn--full btn--sm" download style="margin-top:var(--s2)">📅 <?= htmlspecialchars(corpo_t('mes_evt.btn_ics')) ?></a>
+              <?php
+                $mb0 = $mesBillets[0];
+                $mbPos = ($mb0['statut'] ?? '') === 'liste_attente'
+                    ? billet_waitlist_position($pdo, (int)$mb0['id'])
+                    : null;
+              ?>
+              <p class="flash flash--ok" style="margin:0">
+                <?php if (($mb0['statut'] ?? '') === 'liste_attente'): ?>
+                  ✓ <?= htmlspecialchars(corpo_t('evt.waitlist_badge')) ?><?= $mbPos ? ' — #' . (int)$mbPos : '' ?>.
+                  <span class="evt-waitlist-hint"><?= htmlspecialchars(corpo_t('evt.waitlist_auto')) ?></span>
+                <?php else: ?>
+                  ✓ Inscrit·e.
+                <?php endif; ?>
+              </p>
             <?php else: ?>
               <form method="post">
                 <input type="hidden" name="action" value="inscrire_connexion">
@@ -772,7 +884,7 @@ function render_ticket(array $b, array $ev): string {
               </form>
             <?php endif; ?>
 
-          <?php  ?>
+          <?php /* mode billetterie externe */ ?>
           <?php elseif ($mode === 'externe'): ?>
             <div class="evt-detail-mode-badge">Billetterie externe</div>
             <?php if (!empty($ev['lien_billetterie'])): ?>
@@ -780,7 +892,7 @@ function render_ticket(array $b, array $ev): string {
               <p class="evt-detail-help">Tu seras redirigé·e vers la billetterie de l'organisateur.</p>
             <?php endif; ?>
 
-          <?php  ?>
+          <?php /* mode billetterie email - payant, sans compte */ ?>
           <?php elseif ($mode === 'billetterie_email'): ?>
             <div class="evt-detail-mode-badge">Billetterie par email</div>
             <div class="evt-detail-price">
@@ -794,14 +906,32 @@ function render_ticket(array $b, array $ev): string {
             <?php if ($places > 0): ?>
               <p class="evt-detail-stock">
                 <strong><?= $dispoSlots ?></strong> place<?= $dispoSlots > 1 ? 's' : '' ?> sur <?= $places ?>
-                <?php if ($complet): ?><span class="evt-detail-stock--full">- Complet</span><?php endif; ?>
+                <?php if ($complet): ?><span class="evt-detail-stock--full">- Complet (liste d'attente)</span><?php endif; ?>
               </p>
             <?php endif; ?>
             <?php if (!empty($ev['inscription_message'])): ?>
               <p class="evt-detail-msg"><?= nl2br(htmlspecialchars($ev['inscription_message'])) ?></p>
             <?php endif; ?>
-            <?php if ($complet): ?>
-              <button type="button" class="btn btn--full" disabled>Complet</button>
+            <?php if ($onWaitlist || !empty($billetsInvite)): ?>
+              <?php
+                $bw = $mesBillets[0] ?? $billetsInvite[0] ?? null;
+                $bwPos = $bw ? billet_waitlist_position($pdo, (int)$bw['id']) : null;
+              ?>
+              <p class="flash flash--ok" style="margin:0">
+                <?= htmlspecialchars(corpo_t('evt.waitlist_badge')) ?><?= $bwPos ? ' #' . (int)$bwPos : '' ?> —
+                <?= htmlspecialchars(corpo_t('evt.waitlist_auto')) ?>
+              </p>
+            <?php elseif ($complet): ?>
+              <form method="post" class="evt-detail-form">
+                <input type="hidden" name="action" value="rejoindre_file_attente">
+                <div class="evt-detail-row">
+                  <label>Prénom *<input type="text" name="prenom" required value="<?= htmlspecialchars($_SESSION['prenom'] ?? '') ?>"></label>
+                  <label>Nom *<input type="text" name="nom" required value="<?= htmlspecialchars($_SESSION['nom'] ?? '') ?>"></label>
+                </div>
+                <label>Email *<input type="email" name="email" required value="<?= htmlspecialchars($_SESSION['email'] ?? '') ?>"></label>
+                <button type="submit" class="btn btn--primary btn--full"><?= htmlspecialchars(corpo_t('evt.btn_join_waitlist')) ?></button>
+                <p class="evt-detail-help"><?= htmlspecialchars(corpo_t('evt.waitlist_help')) ?></p>
+              </form>
             <?php else: ?>
               <form method="post" class="evt-detail-form">
                 <input type="hidden" name="action" value="acheter">
@@ -854,7 +984,7 @@ function render_ticket(array $b, array $ev): string {
               </form>
             <?php endif; ?>
 
-          <?php  ?>
+          <?php /* mode billetterie connexion - payant, compte requis */ ?>
           <?php elseif ($mode === 'billetterie_connexion'): ?>
             <div class="evt-detail-mode-badge">Billetterie par connexion</div>
             <div class="evt-detail-price">
@@ -868,7 +998,7 @@ function render_ticket(array $b, array $ev): string {
             <?php if ($places > 0): ?>
               <p class="evt-detail-stock">
                 <strong><?= $dispoSlots ?></strong> place<?= $dispoSlots > 1 ? 's' : '' ?> sur <?= $places ?>
-                <?php if ($complet): ?><span class="evt-detail-stock--full">- Complet</span><?php endif; ?>
+                <?php if ($complet): ?><span class="evt-detail-stock--full">- Complet (liste d'attente)</span><?php endif; ?>
               </p>
             <?php endif; ?>
             <?php if (!empty($ev['inscription_message'])): ?>
@@ -878,8 +1008,39 @@ function render_ticket(array $b, array $ev): string {
             <?php if (!$userId): ?>
               <a href="login.php?next=<?= urlencode('evenement.php?id=' . $id) ?>" class="btn btn--primary btn--full">Se connecter pour acheter</a>
               <p class="evt-detail-help"><a href="register.php">Pas encore de compte ?</a></p>
+            <?php elseif ($onWaitlist): ?>
+              <?php $bwPos = billet_waitlist_position($pdo, (int)($mesBillets[0]['id'] ?? 0)); ?>
+              <p class="flash flash--ok" style="margin:0">
+                <?= htmlspecialchars(corpo_t('evt.waitlist_badge')) ?><?= $bwPos ? ' #' . (int)$bwPos : '' ?> —
+                <?= htmlspecialchars(corpo_t('evt.waitlist_auto')) ?>
+              </p>
+            <?php elseif ($needsPayAfterPromo): ?>
+              <div class="flash flash--ok" style="margin:0 0 var(--s3)">
+                <?= htmlspecialchars(corpo_t('evt.waitlist_promoted_pay')) ?>
+              </div>
+              <form method="post" class="evt-detail-form">
+                <input type="hidden" name="action" value="acheter">
+                <?php if (!empty($tarifsDispo)): ?>
+                  <label>Tarif *
+                    <select name="tarif_id" required>
+                      <?php foreach ($tarifsDispo as $t): ?>
+                        <option value="<?= (int)$t['id'] ?>"><?= htmlspecialchars($t['nom']) ?> - <?= number_format($t['prix'], 2, ',', ' ') ?> €</option>
+                      <?php endforeach; ?>
+                    </select>
+                  </label>
+                <?php endif; ?>
+                <input type="hidden" name="quantite" value="1">
+                <label>Code promo <small style="color:var(--text-muted)">(optionnel)</small>
+                  <input type="text" name="code_promo" value="<?= htmlspecialchars($promoFromUrl) ?>" placeholder="Ex: EARLY20" style="text-transform:uppercase">
+                </label>
+                <button type="submit" class="btn btn--primary btn--full">Finaliser le paiement →</button>
+              </form>
             <?php elseif ($complet): ?>
-              <button type="button" class="btn btn--full" disabled>Complet</button>
+              <form method="post">
+                <input type="hidden" name="action" value="rejoindre_file_attente">
+                <button type="submit" class="btn btn--primary btn--full"><?= htmlspecialchars(corpo_t('evt.btn_join_waitlist')) ?></button>
+                <p class="evt-detail-help"><?= htmlspecialchars(corpo_t('evt.waitlist_help')) ?></p>
+              </form>
             <?php else: ?>
               <form method="post" class="evt-detail-form">
                 <input type="hidden" name="action" value="acheter">
@@ -932,7 +1093,13 @@ function render_ticket(array $b, array $ev): string {
         <?php if (!empty($billetsInvite)): ?>
         <div class="evt-detail-card evt-mes-billets" id="mes-billets">
           <h3>🎟 Ton billet</h3>
-          <?php foreach ($billetsInvite as $b) echo render_ticket($b, $ev); ?>
+          <?php foreach ($billetsInvite as $b): ?>
+            <?php if (($b['statut'] ?? '') === 'liste_attente'): ?>
+              <?= render_waitlist_card($b, $ev, billet_waitlist_position($pdo, (int)$b['id'])) ?>
+            <?php else: ?>
+              <?= render_ticket($b, $ev) ?>
+            <?php endif; ?>
+          <?php endforeach; ?>
           <p class="evt-detail-help">Conserve cette page (ou imprime-la) pour présenter ton QR à l'entrée.</p>
         </div>
         <?php endif; ?>
@@ -942,7 +1109,11 @@ function render_ticket(array $b, array $ev): string {
         <div class="evt-detail-card evt-mes-billets" id="mes-billets">
           <h3>🎟 Mes billets</h3>
           <?php foreach ($mesBillets as $b): ?>
-            <?= render_ticket($b, $ev) ?>
+            <?php if (($b['statut'] ?? '') === 'liste_attente'): ?>
+              <?= render_waitlist_card($b, $ev, billet_waitlist_position($pdo, (int)$b['id'])) ?>
+            <?php else: ?>
+              <?= render_ticket($b, $ev) ?>
+            <?php endif; ?>
             <?php if ($b['statut'] !== 'en_attente'): ?>
               <form method="post" onsubmit="return confirm('Annuler ce billet ?')" style="margin:.4rem 0 1rem">
                 <input type="hidden" name="action" value="annuler_billet">
@@ -951,9 +1122,6 @@ function render_ticket(array $b, array $ev): string {
               </form>
             <?php endif; ?>
           <?php endforeach; ?>
-          <p style="margin-top:var(--s3)">
-            <a href="api/event-ics.php?id=<?= $id ?>" class="btn btn--ghost btn--sm" download>📅 <?= htmlspecialchars(corpo_t('mes_evt.btn_ics')) ?></a>
-          </p>
         </div>
         <?php endif; ?>
 
@@ -1014,7 +1182,7 @@ function render_ticket(array $b, array $ev): string {
 </script>
 <?php endif; ?>
 
-
+<!-- modale QR plein écran -->
 <div id="qr-modal" class="qr-modal" hidden role="dialog" aria-modal="true" aria-labelledby="qr-modal-title">
   <div class="qr-modal__backdrop" data-qr-close></div>
   <div class="qr-modal__inner">
@@ -1026,7 +1194,7 @@ function render_ticket(array $b, array $ev): string {
   </div>
 </div>
 
-
+<!-- modale info Wallet -->
 <div id="wallet-info-modal" class="qr-modal" hidden role="dialog" aria-modal="true" aria-labelledby="wallet-info-title">
   <div class="qr-modal__backdrop" onclick="closeWalletInfo()"></div>
   <div class="qr-modal__inner" style="max-width:480px;text-align:left">
@@ -1037,7 +1205,7 @@ function render_ticket(array $b, array $ev): string {
 </div>
 
 <script>
-
+// fonctions QR et impression (appelées via onclick)
 function openQrModal(src, evt, name) {
   var modal = document.getElementById('qr-modal');
   if (!modal) { alert('Erreur : modale introuvable.'); return; }

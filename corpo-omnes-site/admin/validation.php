@@ -1,20 +1,21 @@
 <?php
-
+// file d'attente de validation - réservé admin corpo
 require_once '../includes/db.php';
 $adminTitle = 'Validation des demandes';
 $adminPage  = 'validation';
 require_once 'includes/admin-header.php';
-requireAdmin();
+requireAdmin(); // minimum admin_corpo
 
 $flash = '';
 
+// on traite la décision de validation ou refus
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['demande_id'])) {
     $demandeId = (int)$_POST['demande_id'];
     $action    = $_POST['action'];
     $message   = trim($_POST['message_refus'] ?? '');
 
     if ($action === 'valider') {
-
+        // On applique le contenu de la demande selon son type
         $d = $pdo->prepare("SELECT * FROM demandes_validation WHERE id = ?");
         $d->execute([$demandeId]);
         $demande = $d->fetch();
@@ -22,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['dem
         if ($demande) {
             $payload = json_decode($demande['payload'], true);
             try {
-
+                // Application selon le type
                 switch ($demande['type']) {
                     case 'evenement':
                         require_once __DIR__ . '/../includes/billetterie.php';
@@ -40,16 +41,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['dem
                         break;
 
                     case 'actualite':
-
+                        // Publie directement l'actualité
                         $stmt = $pdo->prepare("UPDATE actualites SET statut='publie' WHERE id=?");
                         $stmt->execute([$payload['actualite_id'] ?? 0]);
                         break;
 
                     case 'nouvelle_asso':
-
+                        // Pas d'action automatique : l'admin crée manuellement l'asso
+                        // La demande est simplement marquée validée (ack de lecture)
                         break;
                 }
 
+                // Marque la demande comme validée
                 $upd = $pdo->prepare("UPDATE demandes_validation SET statut='valide', validated_by=?, validated_at=NOW() WHERE id=?");
                 $upd->execute([currentUserId(), $demandeId]);
                 $flash = '<div class="flash flash--ok">Demande validée et contenu publié.</div>';
@@ -65,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['dem
     }
 }
 
+// on récupère les demandes selon le filtre
 $filtre   = $_GET['statut'] ?? 'en_attente';
 $filtreOk = in_array($filtre, ['en_attente','valide','refuse','tout']) ? $filtre : 'en_attente';
 
@@ -82,12 +86,14 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $demandes = $stmt->fetchAll();
 
+// Compteurs par statut
 $counts = $pdo->query("SELECT statut, COUNT(*) c FROM demandes_validation GROUP BY statut")->fetchAll(PDO::FETCH_KEY_PAIR);
 ?>
 
 <h1 class="admin-page-title">File de validation</h1>
 <?= $flash ?>
 
+<!-- Onglets filtres -->
 <div style="display:flex;gap:.5rem;margin-bottom:var(--s6);flex-wrap:wrap">
   <?php
   $tabs = [
@@ -108,6 +114,7 @@ $counts = $pdo->query("SELECT statut, COUNT(*) c FROM demandes_validation GROUP 
   <?php endforeach; ?>
 </div>
 
+<!-- Tableau des demandes -->
 <div class="admin-card" style="padding:0;overflow:hidden">
   <?php if (empty($demandes)): ?>
     <p style="padding:var(--s8);text-align:center;color:var(--text-muted)">
@@ -117,7 +124,7 @@ $counts = $pdo->query("SELECT statut, COUNT(*) c FROM demandes_validation GROUP 
     <table class="admin-table">
       <thead>
         <tr>
-          <th>
+          <th>#</th>
           <th>Type</th>
           <th>Structure</th>
           <th>Demandé par</th>
@@ -172,19 +179,22 @@ $counts = $pdo->query("SELECT statut, COUNT(*) c FROM demandes_validation GROUP 
             </td>
             <td>
               <div class="actions">
-                                <button class="btn btn--sm"
+                <!-- Bouton "Voir détail" -->
+                <button class="btn btn--sm"
                         onclick="toggleDetail(<?= $d['id'] ?>)"
                         style="background:var(--surface);border-color:var(--border)">
                   👁️ Détail
                 </button>
 
                 <?php if ($d['statut'] === 'en_attente'): ?>
-                                    <form method="post" style="display:inline" onsubmit="return confirm('Valider et publier cette demande ?')">
+                  <!-- Valider -->
+                  <form method="post" style="display:inline" onsubmit="return confirm('Valider et publier cette demande ?')">
                     <input type="hidden" name="demande_id" value="<?= $d['id'] ?>">
                     <input type="hidden" name="action" value="valider">
                     <button type="submit" class="btn btn--sm btn--success">Valider</button>
                   </form>
-                                    <button class="btn btn--sm btn--danger"
+                  <!-- Refuser -->
+                  <button class="btn btn--sm btn--danger"
                           onclick="showRefus(<?= $d['id'] ?>)">
                     Refuser
                   </button>
@@ -192,10 +202,12 @@ $counts = $pdo->query("SELECT statut, COUNT(*) c FROM demandes_validation GROUP 
               </div>
             </td>
           </tr>
-                    <tr id="detail-<?= $d['id'] ?>" style="display:none">
+          <!-- Ligne détail (cachée par défaut) -->
+          <tr id="detail-<?= $d['id'] ?>" style="display:none">
             <td colspan="7" style="background:rgba(255,255,255,.02);padding:var(--s4)">
               <?php if ($d['type'] === 'nouvelle_asso' && $payload): ?>
-                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s4);font-size:.82rem">
+                <!-- Affichage structuré pour les propositions d'asso -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--s4);font-size:.82rem">
                   <div>
                     <p style="color:var(--blue-light);font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.2rem">Nom proposé</p>
                     <p><?= htmlspecialchars($payload['nom'] ?? '-') ?></p>
@@ -236,7 +248,8 @@ $counts = $pdo->query("SELECT statut, COUNT(*) c FROM demandes_validation GROUP 
               <?php endif; ?>
 
               <?php if ($d['statut'] === 'en_attente'): ?>
-                                <div id="refus-<?= $d['id'] ?>" style="display:none;margin-top:var(--s4)">
+                <!-- Formulaire de refus -->
+                <div id="refus-<?= $d['id'] ?>" style="display:none;margin-top:var(--s4)">
                   <form method="post">
                     <input type="hidden" name="demande_id" value="<?= $d['id'] ?>">
                     <input type="hidden" name="action" value="refuser">

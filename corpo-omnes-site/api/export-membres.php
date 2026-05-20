@@ -1,5 +1,8 @@
 <?php
-
+/**
+ * Export Excel des membres actifs d'une structure.
+ * GET ?type=asso|bde|bds|sport&id=123&format=xlsx|csv
+ */
 require_once __DIR__ . '/../includes/db.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/spreadsheet-export.php';

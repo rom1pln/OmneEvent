@@ -3,10 +3,11 @@ $adminTitle = 'Utilisateurs';
 $adminPage  = 'users';
 require_once '../includes/db.php';
 require_once 'includes/admin-header.php';
-requireAdmin();
+requireAdmin(); // min admin_corpo
 
 $flash = '';
 
+// rôle global d'un user (null si introuvable)
 function userTargetRole(PDO $pdo, int $userId): ?string {
     if ($userId <= 0) return null;
     $st = $pdo->prepare('SELECT role FROM users WHERE id = ? LIMIT 1');
@@ -15,15 +16,18 @@ function userTargetRole(PDO $pdo, int $userId): ?string {
     return $r ? (string)$r : null;
 }
 
+// les admin_corpo ne peuvent pas toucher aux super_admin
 function canActOnUser(PDO $pdo, int $targetUserId): bool {
     if (isSuperAdmin()) return true;
     $role = userTargetRole($pdo, $targetUserId);
     return $role !== null && $role !== 'super_admin';
 }
 
+// actions POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
+    // créer un user
     if ($action === 'create') {
         $username = trim($_POST['username'] ?? '');
         $email    = trim($_POST['email']    ?? '');
@@ -54,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+    // changer le statut
     } elseif ($action === 'statut') {
         $userId    = (int)($_POST['user_id'] ?? 0);
         $newStatut = $_POST['statut'] ?? 'actif';
@@ -66,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $flash = '<div class="flash flash--ok">Statut mis à jour.</div>';
         }
 
+    // changer le rôle (super_admin seulement)
     } elseif ($action === 'role' && isSuperAdmin()) {
         $userId  = (int)($_POST['user_id'] ?? 0);
         $newRole = $_POST['role'] ?? 'user';
@@ -79,6 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $flash = '<div class="flash flash--ok">Rôle global mis à jour.</div>';
         }
 
+    // assigner à une structure
     } elseif ($action === 'assigner_structure') {
         $userId       = (int)($_POST['user_id']      ?? 0);
         $structType   = $_POST['structure_type']     ?? '';
@@ -100,12 +107,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$userId, $structType, $structId, $roleInStruct, currentUserId(), $roleInStruct]);
 
                 if ($roleInStruct === 'admin') {
-
+                    // si on nomme admin → passe à membre_corpo pour accéder au panel
                     $pdo->prepare(
                         "UPDATE users SET role='membre_corpo' WHERE id=? AND role='user'"
                     )->execute([$userId]);
                 } else {
-
+                    // sinon on resync le rôle global au cas où
                     syncGlobalRoleAfterStructChange($pdo, $userId);
                 }
                 $flash = '<div class="flash flash--ok">Affectation enregistrée.</div>';
@@ -114,10 +121,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+    // retirer d'une structure
     } elseif ($action === 'retirer_structure') {
         $membreId = (int)($_POST['membre_id'] ?? 0);
         if ($membreId) {
-
+            // récupère l'user_id avant de supprimer pour synchro après
             $uStmt = $pdo->prepare("SELECT user_id FROM structure_membres WHERE id = ? LIMIT 1");
             $uStmt->execute([$membreId]);
             $targetUserId = (int)$uStmt->fetchColumn();
@@ -134,6 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+    // ── Supprimer l'utilisateur (super_admin) ────────────────────────────────
     } elseif ($action === 'delete' && isSuperAdmin()) {
         $userId = (int)($_POST['user_id'] ?? 0);
         if ($userId === currentUserId()) {
@@ -145,8 +154,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// ── Lecture ───────────────────────────────────────────────────────────────────
 $users = $pdo->query("SELECT * FROM users ORDER BY role, username")->fetchAll();
 
+// Structures pour le formulaire d'assignation, regroupées par type
 $bdes   = $pdo->query("SELECT id,nom,ecole FROM associations WHERE type='BDE'   ORDER BY nom")->fetchAll();
 $bds_   = $pdo->query("SELECT id,nom,ecole FROM associations WHERE type='BDS'   ORDER BY nom")->fetchAll();
 $assos  = $pdo->query("SELECT id,nom,ecole FROM associations WHERE type NOT IN ('BDE','BDS','Corpo') ORDER BY nom")->fetchAll();
@@ -163,6 +174,7 @@ if (isSuperAdmin()) $roleGlobalOptions['super_admin'] = 'Super Admin';
 <h1 class="admin-page-title">Utilisateurs</h1>
 <?= $flash ?>
 
+<!-- ── Créer un utilisateur ──────────────────────────────────────────────── -->
 <div class="admin-card">
   <h2>Créer un compte manuellement</h2>
   <p style="font-size:.8rem;color:var(--text-muted);margin-bottom:var(--s4)">
@@ -190,6 +202,7 @@ if (isSuperAdmin()) $roleGlobalOptions['super_admin'] = 'Super Admin';
   </form>
 </div>
 
+<!-- ── Liste des utilisateurs ────────────────────────────────────────────── -->
 <div class="admin-card" style="padding:0;overflow:hidden">
   <div style="padding:var(--s5) var(--s6);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:var(--s4)">
     <strong>Tous les utilisateurs (<?= count($users) ?>)</strong>
@@ -211,7 +224,7 @@ if (isSuperAdmin()) $roleGlobalOptions['super_admin'] = 'Super Admin';
     </thead>
     <tbody>
       <?php foreach ($users as $u):
-
+        // Récupère toutes les appartenances avec le nom de la structure
         $stmtS = $pdo->prepare(
           "SELECT sm.id AS membre_id, sm.structure_type, sm.structure_id, sm.role_in_struct, sm.statut,
                   COALESCE(a.nom, sp.nom) AS struct_nom
@@ -246,7 +259,8 @@ if (isSuperAdmin()) $roleGlobalOptions['super_admin'] = 'Super Admin';
               <?= $u['statut'] ?>
             </span>
           </td>
-                    <td style="font-size:.73rem;max-width:200px">
+          <!-- Structures -->
+          <td style="font-size:.73rem;max-width:200px">
             <?php if (empty($structs)): ?>
               <span style="color:var(--text-muted)">-</span>
             <?php else: ?>
@@ -269,12 +283,14 @@ if (isSuperAdmin()) $roleGlobalOptions['super_admin'] = 'Super Admin';
               <?php endforeach; ?>
             <?php endif; ?>
           </td>
-                    <td>
+          <!-- Actions -->
+          <td>
             <?php $isProtected = ($u['role'] === 'super_admin') && !isSuperAdmin(); ?>
             <div class="actions" style="flex-wrap:wrap;gap:4px">
               <?php if ($u['id'] !== currentUserId() && !$isProtected): ?>
 
-                                <form method="post" style="display:inline">
+                <!-- Statut -->
+                <form method="post" style="display:inline">
                   <input type="hidden" name="action" value="statut">
                   <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
                   <?php if ($u['statut'] === 'actif'): ?>
@@ -289,13 +305,17 @@ if (isSuperAdmin()) $roleGlobalOptions['super_admin'] = 'Super Admin';
                   <?php endif; ?>
                 </form>
 
-                                <button class="btn btn--sm" onclick="toggleAssign(<?= $u['id'] ?>)"
+                <!-- Assigner à une structure -->
+                <button class="btn btn--sm" onclick="toggleAssign(<?= $u['id'] ?>)"
                         style="background:var(--surface);border-color:var(--border)">
                   Affecter
                 </button>
 
                 <?php if (isSuperAdmin()): ?>
-                                    <form method="post" class="role-global-form"
+                  <!-- Rôle global : on évite onchange=submit (déclenchements fantômes
+                       sur restauration BFCache / navigation clavier). Bouton Valider
+                       explicite, désactivé tant que la valeur n'a pas changé. -->
+                  <form method="post" class="role-global-form"
                         style="display:inline-flex;gap:.3rem;align-items:center" title="Changer le rôle global">
                     <input type="hidden" name="action" value="role">
                     <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
@@ -312,7 +332,8 @@ if (isSuperAdmin()) $roleGlobalOptions['super_admin'] = 'Super Admin';
                       ✓
                     </button>
                   </form>
-                                    <form method="post" style="display:inline"
+                  <!-- Supprimer -->
+                  <form method="post" style="display:inline"
                         onsubmit="return confirm('Supprimer définitivement cet utilisateur ?')">
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
@@ -324,7 +345,8 @@ if (isSuperAdmin()) $roleGlobalOptions['super_admin'] = 'Super Admin';
               <?php endif; ?>
             </div>
 
-                        <div id="assign-<?= $u['id'] ?>" style="display:none;margin-top:var(--s3)">
+            <!-- Panneau d'affectation à une structure (masqué par défaut) -->
+            <div id="assign-<?= $u['id'] ?>" style="display:none;margin-top:var(--s3)">
               <form method="post" class="admin-form"
                     style="background:rgba(255,255,255,.03);border:1px solid var(--border);
                            border-radius:var(--r-md);padding:var(--s4)">
@@ -376,7 +398,7 @@ if (isSuperAdmin()) $roleGlobalOptions['super_admin'] = 'Super Admin';
 </div>
 
 <script>
-
+// Données pour les selects dynamiques
 const structData = {
   bde:   <?= json_encode(array_map(fn($b) => ['id'=>$b['id'],'nom'=>$b['nom'].' ('.$b['ecole'].')'], $bdes))   ?>,
   asso:  <?= json_encode(array_map(fn($a) => ['id'=>$a['id'],'nom'=>$a['nom'].' ('.$a['ecole'].')'], $assos))  ?>,
@@ -387,7 +409,7 @@ const structData = {
 function toggleAssign(id) {
   const el = document.getElementById('assign-' + id);
   const open = el.style.display === 'none';
-
+  // Ferme tous les panneaux ouverts
   document.querySelectorAll('[id^="assign-"]').forEach(p => p.style.display = 'none');
   if (open) el.style.display = '';
 }
@@ -401,6 +423,7 @@ function updateStructList(userId) {
     : '<option value="0">- Aucune structure de ce type -</option>';
 }
 
+// Filtre rapide dans le tableau
 document.getElementById('user-search').addEventListener('input', function() {
   const q = this.value.toLowerCase().trim();
   document.querySelectorAll('#users-table tbody tr[data-search]').forEach(tr => {
@@ -408,6 +431,9 @@ document.getElementById('user-search').addEventListener('input', function() {
   });
 });
 
+// Rôle global : on n'active le bouton Valider que si la valeur a réellement
+// changé par rapport à l'initial. Garde aussi contre la soumission auto
+// lors d'une restauration BFCache (le navigateur peut "rejouer" un état select).
 document.querySelectorAll('.role-global-form').forEach(form => {
   const sel = form.querySelector('select[name="role"]');
   const btn = form.querySelector('.role-global-form__save');

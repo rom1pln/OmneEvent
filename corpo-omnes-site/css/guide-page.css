@@ -1,5 +1,6 @@
+/* guide-site.php - complète style.css (DA Corpo Omnes : tokens, page-hero, pillar-card, evt-filterbar, tags…) */
 
-
+/* Hero : grille texte + aperçu cartes (sous le bloc titre du page-hero) */
 .guide-page__hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(200px, 300px);
@@ -25,6 +26,7 @@
   margin-top: var(--s4);
 }
 
+/* Mini aperçu façon cartes événements / surface du site */
 .guide-page__mockups {
   display: flex;
   flex-direction: column;
@@ -60,6 +62,7 @@
 .guide-page__mock-lines span:nth-child(2) { width: 66%; }
 .guide-page__mock-lines span:nth-child(3) { width: 78%; }
 
+/* Ancres sommaire : liens = chips filtres événements */
 .guide-page .evt-chip {
   text-decoration: none;
   color: inherit;
@@ -67,6 +70,7 @@
   align-items: center;
 }
 
+/* Grille contenu : 12 colonnes comme le reste du site */
 .guide-bento {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
@@ -94,6 +98,7 @@
   }
 }
 
+/* Filigran numéro - discret, même esprit que stats / display */
 .guide-page__num {
   position: absolute;
   top: var(--s5);
@@ -105,10 +110,12 @@
   pointer-events: none;
 }
 
+/* Carte « portail » : un peu plus d’air (toujours pillar-card) */
 .guide-page__card--full:not(.guide-page__card--admin):not(.guide-page__card--legal) {
   padding: var(--s8) var(--s7);
 }
 
+/* Admin : teinte billet / violet DA (cf. evt-card__date) */
 .guide-page__card--admin {
   background: linear-gradient(155deg, rgba(93, 2, 130, .22) 0%, rgba(93, 2, 130, .06) 100%);
   border-color: rgba(93, 2, 130, .4);
@@ -119,10 +126,12 @@
   color: #fff;
 }
 
+/* Légal : plus sobre */
 .guide-page__card--legal {
   background: rgba(255, 255, 255, .03);
 }
 
+/* CTA : bloc centré façon bandeau secondaire */
 .guide-page__cta-inner {
   text-align: center;
   max-width: 640px;

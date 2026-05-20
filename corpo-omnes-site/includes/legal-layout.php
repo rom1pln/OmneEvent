@@ -1,5 +1,16 @@
 <?php
-
+/**
+ * includes/legal-layout.php
+ * Layout commun à toutes les pages légales (mentions, confidentialité, cookies, CGV, CGU).
+ *
+ * Variables attendues avant l'inclusion :
+ *   $legalKey        string  Clé i18n racine : 'legal.mentions' | 'legal.confid' | 'legal.cookies' | 'legal.cgv' | 'legal.cgu'
+ *   $legalPage       string  Slug page actuelle pour $page (ex: 'mentions-legales')
+ *   $legalUpdated    string  Date de dernière mise à jour (format affiché)
+ *   $legalToc        array   [ ['id' => 'sec-1', 'label' => 'Titre 1'], ... ]
+ *   $legalContent    string  HTML du contenu (sections <section id="sec-1"><h2>…</h2><p>…</p></section>)
+ *   $legalRelated    array?  [ ['href' => 'cgu.php', 'label' => 'CGU'], ... ] - optionnel
+ */
 require_once __DIR__ . '/i18n.php';
 
 $title = corpo_t($legalKey . '.meta_title');

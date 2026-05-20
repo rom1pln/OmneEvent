@@ -10,12 +10,14 @@ $mandatColsReady = asso_has_mandat_columns($pdo);
 
 $flash = '';
 
+// génère un slug unique depuis le nom
 function makeAssoSlug(string $nom, PDO $pdo, ?int $excludeId = null): string {
     $base = preg_replace('/[^a-z0-9]+/', '-',
         strtolower(iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', trim($nom)))
     );
     $base = trim($base, '-') ?: 'asso';
 
+    // S'assurer de l'unicité
     $slug = $base;
     $i    = 2;
     while (true) {
@@ -291,6 +293,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Filtrage selon les droits
 if (isAdminCorpo()) {
     $assos = $pdo->query("SELECT * FROM associations ORDER BY type, nom")->fetchAll();
 } else {
@@ -330,6 +333,7 @@ if (isAdminCorpo()) {
   </div>
 <?php endif; ?>
 
+<!-- Formulaire ajout : Corpo, BDE ou Fédération -->
 <?php if (canCreateAssociation($pdo)): ?>
 <div class="admin-card">
   <h2>Ajouter une association</h2>
@@ -337,10 +341,11 @@ if (isAdminCorpo()) {
 </div>
 <?php endif; ?>
 
+<!-- Tableau -->
 <div class="admin-card" style="padding:0;overflow:hidden">
   <table class="admin-table">
     <thead>
-      <tr><th>
+      <tr><th>#</th><th>Nom</th><th>École</th><th>Type</th><th>Campus</th><th>Rattachée à</th><?php if ($mandatColsReady): ?><th>Activité</th><?php endif; ?><th>Actions</th></tr>
     </thead>
     <tbody>
       <?php foreach ($assos as $a): ?>
@@ -392,7 +397,8 @@ if (isAdminCorpo()) {
             </div>
           </td>
         </tr>
-                <tr id="edit-asso-<?= $a['id'] ?>" style="display:none">
+        <!-- Ligne d'édition inline -->
+        <tr id="edit-asso-<?= $a['id'] ?>" style="display:none">
           <td colspan="<?= $mandatColsReady ? 8 : 7 ?>" style="background:rgba(255,255,255,.02);padding:var(--s5)">
             <strong style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--blue-light)">
               Modifier - <?= htmlspecialchars($a['nom']) ?>
@@ -418,7 +424,7 @@ function toggleEdit(id) {
 <?php require_once 'includes/admin-footer.php'; ?>
 
 <?php
-
+// génère le formulaire d'ajout/édition d'une asso
 function assoForm(PDO $pdo, string $action, array $a = []): string {
     $isEdit = $action === 'update';
     $id     = $a['id'] ?? '';
@@ -461,11 +467,13 @@ function assoForm(PDO $pdo, string $action, array $a = []): string {
     }
     $f .= '</div></div>';
 
+    // Ligne 1 : Nom, École
     $f .= '<div class="form-row">';
     $f .= '<div class="form-col" style="flex:2"><label>Nom</label><input type="text" name="nom" value="' . $v('nom') . '" required></div>';
     $f .= '<div class="form-col"><label>École</label><select name="ecole">' . $selOpt($ecoles, $a['ecole'] ?? 'Toutes') . '</select></div>';
     $f .= '</div>';
 
+    // Ligne 2 : Type, Campus, Couleur
     $f .= '<div class="form-row">';
     $f .= '<div class="form-col"><label>Type</label><select name="type">' . $selOpt($types, $a['type'] ?? $typeDefault) . '</select></div>';
     $f .= '<div class="form-col"><label>Campus</label><select name="campus">' . $selOpt($campus, $a['campus'] ?? 'Tous') . '</select></div>';
@@ -482,11 +490,13 @@ function assoForm(PDO $pdo, string $action, array $a = []): string {
         $f .= '</div>';
     }
 
+    // Ligne 3 : Contact, Instagram
     $f .= '<div class="form-row">';
     $f .= '<div class="form-col"><label>Contact (email)</label><input type="text" name="contact" value="' . $v('contact') . '"></div>';
     $f .= '<div class="form-col"><label>Instagram</label><input type="text" name="instagram" value="' . $v('instagram') . '"></div>';
     $f .= '</div>';
 
+    // Ligne 4 : Logo upload
     $f .= '<div class="form-row"><div class="form-col">';
     $f .= '<label>Logo</label>';
     if ($isEdit && !empty($a['logo'])) {
@@ -501,11 +511,13 @@ function assoForm(PDO $pdo, string $action, array $a = []): string {
     $f .= '</div>';
     $f .= '</div></div>';
 
+    // Ligne 5 : Description, Ouverte à tous
     $f .= '<div class="form-row">';
     $f .= '<div class="form-col" style="flex:2"><label>Description</label><textarea name="description" rows="3">' . $v('description') . '</textarea></div>';
     $f .= '<div class="form-col" style="flex:0;min-width:140px;align-self:center"><label><input type="checkbox" name="ouverte_a_tous"' . (!empty($a['ouverte_a_tous']) ? ' checked' : '') . '> Ouverte à tous</label></div>';
     $f .= '</div>';
 
+    // Ligne 6 : Écoles autorisées à rejoindre (filtre demandes d'adhésion)
     $ecolesPossibles = ['ECE','ESCE','HEIP','INSEEC Bachelor','INSEEC BBA','INSEEC BTS','INSEEC GE','INSEEC MSc','Sup de Pub'];
     $current = $a['ecoles_eligibles'] ?? null;
     if (is_string($current))    $current = json_decode($current, true) ?: [];

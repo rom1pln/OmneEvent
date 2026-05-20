@@ -1,4 +1,5 @@
 <?php
+// charge le .env et expose corpo_env(key, default)
 
 if (!function_exists('corpo_env_load')) {
     function corpo_env_load(?string $path = null): void {
@@ -8,9 +9,9 @@ if (!function_exists('corpo_env_load')) {
 
         $candidates = [
             $path,
-            __DIR__ . '/.env',
-            __DIR__ . '/../.env',
-            __DIR__ . '/../../.env',
+            __DIR__ . '/.env',          // includes/.env (emplacement plus sûr - non servi par Apache si .htaccess)
+            __DIR__ . '/../.env',       // corpo-omnes-site/.env (racine du site)
+            __DIR__ . '/../../.env',    // un cran au-dessus
         ];
         foreach ($candidates as $file) {
             if (!$file || !is_file($file) || !is_readable($file)) continue;
@@ -21,7 +22,7 @@ if (!function_exists('corpo_env_load')) {
                 if (!str_contains($line, '=')) continue;
                 [$k, $v] = array_map('trim', explode('=', $line, 2));
                 if ($k === '') continue;
-
+                // Strip wrapping quotes
                 if (strlen($v) >= 2 && ($v[0] === '"' || $v[0] === "'") && $v[strlen($v)-1] === $v[0]) {
                     $v = substr($v, 1, -1);
                 }
@@ -30,7 +31,7 @@ if (!function_exists('corpo_env_load')) {
                     $_ENV[$k] = $v;
                 }
             }
-            return;
+            return; // first match wins
         }
     }
 }

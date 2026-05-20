@@ -1,5 +1,5 @@
 <?php
-
+// helpers compta : sync billetterie/boutique, utilitaires structure
 declare(strict_types=1);
 
 function compta_has_source_columns(PDO $pdo): bool {
@@ -104,6 +104,7 @@ function compta_tx_exists_for_source(PDO $pdo, string $sourceType, int $sourceId
     return (bool)$st->fetchColumn();
 }
 
+// importe un paiement billetterie en transaction compta
 function compta_import_billetterie(PDO $pdo, int $paiementId, ?int $userId = null): array {
     if (!compta_has_source_columns($pdo)) {
         return ['ok' => false, 'msg' => 'Applique la migration « compta_tx_source_link » dans Migrations DB.'];
@@ -168,6 +169,11 @@ function compta_import_billetterie(PDO $pdo, int $paiementId, ?int $userId = nul
     return ['ok' => true, 'tx_id' => (int)$pdo->lastInsertId(), 'msg' => 'Recette billetterie importée.'];
 }
 
+/**
+ * Importe une ligne de commande boutique (une recette par ligne / structure).
+ *
+ * @return array{ok:bool,msg?:string,tx_id?:int,skipped?:bool}
+ */
 function compta_import_boutique_ligne(PDO $pdo, int $ligneId, ?int $userId = null): array {
     if (!compta_has_source_columns($pdo)) {
         return ['ok' => false, 'msg' => 'Migration source compta manquante.'];
@@ -229,6 +235,7 @@ function compta_import_boutique_ligne(PDO $pdo, int $ligneId, ?int $userId = nul
     return ['ok' => true, 'tx_id' => (int)$pdo->lastInsertId(), 'msg' => 'Vente boutique importée.'];
 }
 
+/** @return array{imported:int,skipped:int,errors:array<int,string>} */
 function compta_import_all_pending(PDO $pdo, string $structType, int $structId, ?int $userId = null): array {
     $out = ['imported' => 0, 'skipped' => 0, 'errors' => []];
     foreach (compta_pending_billetterie($pdo, $structType, $structId) as $row) {
@@ -274,6 +281,11 @@ function compta_try_auto_import_boutique_commande(PDO $pdo, int $commandeId): vo
     }
 }
 
+/**
+ * Paiements billetterie payés non encore en compta pour cette structure.
+ *
+ * @return list<array<string,mixed>>
+ */
 function compta_pending_billetterie(PDO $pdo, string $structType, int $structId): array {
     if (!compta_has_source_columns($pdo)) {
         return [];
@@ -299,6 +311,11 @@ function compta_pending_billetterie(PDO $pdo, string $structType, int $structId)
     return $st->fetchAll(PDO::FETCH_ASSOC);
 }
 
+/**
+ * Lignes boutique payées non importées.
+ *
+ * @return list<array<string,mixed>>
+ */
 function compta_pending_boutique_lignes(PDO $pdo, string $structType, int $structId): array {
     if (!compta_has_source_columns($pdo)) {
         return [];
@@ -321,6 +338,11 @@ function compta_pending_boutique_lignes(PDO $pdo, string $structType, int $struc
     return $st->fetchAll(PDO::FETCH_ASSOC);
 }
 
+/**
+ * Synthèse encaissements en ligne vs compta (structure).
+ *
+ * @return array{billetterie:array{online:float,compta:float,pending:float},boutique:array{online:float,compta:float,pending:float}}
+ */
 function compta_encaissements_summary(PDO $pdo, string $structType, int $structId): array {
     $sum = [
         'billetterie' => ['online' => 0.0, 'compta' => 0.0, 'pending' => 0.0],

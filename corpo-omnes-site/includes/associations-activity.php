@@ -1,5 +1,5 @@
 <?php
-
+// gestion des mandats d'assos (null sur une date = pas de limite)
 declare(strict_types=1);
 
 require_once __DIR__ . '/date-fr.php';
@@ -71,11 +71,13 @@ function asso_sql_active_condition(string $alias = ''): string
             AND ({$p}date_fin_mandat IS NULL OR {$p}date_fin_mandat >= CURDATE()))";
 }
 
+// types qui n'ont pas de parent BDE
 function asso_type_skips_parent_link(string $type): bool
 {
     return in_array(trim($type), ['BDE', 'BDS', 'Corpo', 'Fédération'], true);
 }
 
+// école rattachée directement à la Corpo (pas de BDE)
 function asso_ecole_is_corpo_direct(string $ecole): bool
 {
     $e = trim($ecole);
@@ -85,6 +87,7 @@ function asso_ecole_is_corpo_direct(string $ecole): bool
     return stripos($e, 'omnes') !== false;
 }
 
+// BDE actif pour une école (le plus récent si plusieurs)
 function asso_find_active_bde_for_ecole(PDO $pdo, string $ecole, ?int $exceptId = null): ?array
 {
     $sql = "SELECT * FROM associations WHERE type = 'BDE' AND ecole = ?";
@@ -105,6 +108,7 @@ function asso_find_active_bde_for_ecole(PDO $pdo, string $ecole, ?int $exceptId 
     return null;
 }
 
+// EchoFed (fédé HEIP) si mandat en cours
 function asso_find_active_echofed(PDO $pdo): ?array
 {
     $st = $pdo->query("SELECT * FROM associations WHERE slug = 'echofed' LIMIT 1");
@@ -124,6 +128,7 @@ function asso_find_active_echofed(PDO $pdo): ?array
     return null;
 }
 
+// trouve le parent_bde_id selon l'école et les mandats actifs
 function asso_resolve_parent_bde_id(PDO $pdo, string $ecole, string $type, ?int $selfId = null): ?int
 {
     if (asso_type_skips_parent_link($type)) {
@@ -140,6 +145,11 @@ function asso_resolve_parent_bde_id(PDO $pdo, string $ecole, string $type, ?int 
     return $bde ? (int)$bde['id'] : null;
 }
 
+/**
+ * Libellé admin pour le rattachement automatique.
+ *
+ * @return array{id: ?int, label: string, warn: ?string}
+ */
 function asso_describe_parent_attachment(PDO $pdo, string $ecole, string $type, ?int $selfId = null): array
 {
     if (asso_type_skips_parent_link($type)) {
@@ -178,6 +188,7 @@ function asso_describe_parent_attachment(PDO $pdo, string $ecole, string $type, 
     ];
 }
 
+/** Après création / modification d'un BDE ou d'une fédération HEIP. */
 function asso_sync_parents_after_structure_change(
     PDO $pdo,
     string $type,
@@ -206,6 +217,7 @@ function asso_sync_parents_after_structure_change(
     $sync($ecole);
 }
 
+/** Recalcule parent_bde_id pour les assos « enfants » d'une école. */
 function asso_sync_parents_for_ecole(PDO $pdo, string $ecole): int
 {
     $st = $pdo->prepare(

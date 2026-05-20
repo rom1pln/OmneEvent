@@ -1,4 +1,4 @@
-
+// Filtres TV - filtre par campus (?campus=Citroen|Citadelle) et par école (?ecole=ECE|ESCE|...)
 (function (global) {
   'use strict';
 
@@ -17,6 +17,7 @@
     Citadelle: 'Citadelle',
   };
 
+  // les programmes INSEEC se regroupent sous un seul filtre "inseec"
   const INSEEC_PROGRAMS = [
     'INSEEC Bachelor',
     'INSEEC BBA',
@@ -25,6 +26,7 @@
     'INSEEC MSc',
   ];
 
+  // couleurs par école (doivent correspondre au style.css)
   const ECOLE_COLORS = {
     ECE: '#007179',
     ESCE: '#002D74',
@@ -87,6 +89,7 @@
     return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
   }
 
+  // normalise une couleur hex (#abc ou abc123 → #AABBCC)
   function normalizeHexColor(raw) {
     if (raw == null || raw === '') return null;
     let c = String(raw).trim();
@@ -99,6 +102,7 @@
     return c;
   }
 
+  // applique la couleur de l'école sur toute la page (remplace le violet Corpo par défaut)
   function applySchoolThemeToDocument(ecole) {
     const sc = ecoleColor(ecole);
     const root = global.document && global.document.documentElement;
@@ -113,6 +117,7 @@
     return sc;
   }
 
+  // convertit le paramètre ?ecole vers la clé canonique (ECE, ESCE, HEIP, INSEEC, Sup de Pub)
   function normalizeEcoleKey(raw) {
     if (!raw) return null;
     const folded = fold(raw);

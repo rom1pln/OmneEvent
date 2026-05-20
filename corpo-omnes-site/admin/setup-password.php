@@ -1,10 +1,22 @@
 <?php
+/*
+ * admin/setup-password.php
+ * ============================================================
+ * OUTIL DE CONFIGURATION INITIALE - À SUPPRIMER APRÈS UTILISATION
+ *
+ * URL : http://localhost/corpo-omnes-site/admin/setup-password.php
+ *
+ * Ce script configure les mots de passes des comptes par défaut.
+ * Supprimez ce fichier une fois terminé.
+ * ============================================================
+ */
 
 require_once '../includes/db.php';
 
+// Mots de passe à configurer - changez-les avant d'exécuter !
 $comptes = [
-    'superadmin' => 'superadmin2026',
-    'admincorpo' => 'admin2026',
+    'superadmin' => 'superadmin2026',  // ← Super Admin
+    'admincorpo' => 'admin2026',       // ← Admin Corpo
 ];
 
 $ok    = [];
@@ -28,12 +40,12 @@ foreach ($comptes as $username => $mdp) {
   <title>Setup - Corpo Omnes</title>
   <style>
     body { font-family: sans-serif; max-width: 600px; margin: 3rem auto; padding: 1rem; }
-    .ok  { background: #ecfdf5; border: 1px solid #6ee7b7; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
-    .err { background: #fef2f2; border: 1px solid #fca5a5; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+    .ok  { background:#d1fae5; border:1px solid #6ee7b7; border-radius:8px; padding:1rem; margin-bottom:1rem; }
+    .err { background:#fee2e2; border:1px solid #fca5a5; border-radius:8px; padding:1rem; margin-bottom:1rem; }
     table { border-collapse: collapse; width: 100%; margin-top: .5rem; }
-    td, th { border: 1px solid #ddd; padding: .4rem .6rem; text-align: left; }
-    th { background: #f3f4f6; }
-    .warn { background: #fffbeb; border: 1px solid #fcd34d; padding: 1rem; border-radius: 8px; margin-top: 1.5rem; }
+    td, th { border: 1px solid #ccc; padding: .4rem .7rem; }
+    th { background:#f3f4f6; }
+    .warn { background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; padding:1rem; margin-top:1rem; }
   </style>
 </head>
 <body>

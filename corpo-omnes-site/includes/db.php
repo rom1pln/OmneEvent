@@ -1,9 +1,10 @@
 <?php
+// Connexion PDO - adapter les constantes selon la config XAMPP
 
 define('DB_HOST',    'localhost');
-define('DB_NAME',    'corpo_omnes');
+define('DB_NAME',    'corpoomneshtmlprojet');
 define('DB_USER',    'root');
-define('DB_PASS',    '');
+define('DB_PASS',    '');           // mot de passe XAMPP (vide par défaut)
 define('DB_CHARSET', 'utf8mb4');
 
 try {
@@ -14,12 +15,15 @@ try {
     $pdo = new PDO($dsn, DB_USER, DB_PASS, [
         PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES   => false,
+        PDO::ATTR_EMULATE_PREPARES   => false, // important pour les types corrects en retour
     ]);
     corpo_pdo_sync_timezone($pdo);
 } catch (PDOException $e) {
-
     http_response_code(500);
+    if (defined('CORPO_API_PLAIN') && CORPO_API_PLAIN) {
+        header('Content-Type: text/plain; charset=utf-8');
+        exit('Database connection failed.');
+    }
     exit('<p style="font-family:sans-serif;color:red;padding:2rem">
         Connexion à la base de données impossible.<br>
         Vérifiez que MySQL est démarré dans XAMPP et que <code>database.sql</code> a bien été importé.<br>
@@ -27,6 +31,8 @@ try {
     </p>');
 }
 
+// synchronise le fuseau horaire MySQL sur PHP
+// sans ça les tokens de reset expirent à tort selon la config serveur
 function corpo_pdo_sync_timezone(PDO $pdo): void
 {
     static $done = false;
@@ -50,10 +56,11 @@ function corpo_pdo_sync_timezone(PDO $pdo): void
         $offset = (new DateTimeImmutable('now'))->format('P');
         $pdo->exec('SET time_zone = ' . $pdo->quote($offset));
     } catch (Throwable $e) {
-
+        // pas grave si ça plante, MySQL reste cohérent en interne
     }
 }
 
+// extrait un token hex depuis une URL (gère les espaces et encodages URL)
 function corpo_normalize_hex_token(string $raw, int $length = 64): string
 {
     $raw = trim(rawurldecode($raw));
@@ -95,6 +102,7 @@ function corpo_email_verifications_table_ready(PDO $pdo): bool
     return $cache;
 }
 
+// vérifie si une date est dépassée, via MySQL (plus fiable que comparer côté PHP)
 function corpo_db_datetime_is_past(PDO $pdo, string $table, int $id, string $column = 'expires_at'): bool
 {
     $allowed = ['password_resets', 'email_verifications'];
@@ -114,6 +122,7 @@ function corpo_db_datetime_is_past(PDO $pdo, string $table, int $id, string $col
     }
 }
 
+// charge la demande de reset correspondant au token du lien mail
 function corpo_password_reset_lookup(PDO $pdo, string $tokenHash): ?array
 {
     if ($tokenHash === '' || strlen($tokenHash) !== 64) {
@@ -133,6 +142,7 @@ function corpo_password_reset_lookup(PDO $pdo, string $tokenHash): ?array
     return $row ?: null;
 }
 
+// idem pour la vérification d'email
 function corpo_email_verification_lookup(PDO $pdo, string $tokenHash): ?array
 {
     if ($tokenHash === '' || strlen($tokenHash) !== 64) {
@@ -152,6 +162,7 @@ function corpo_email_verification_lookup(PDO $pdo, string $tokenHash): ?array
     return $row ?: null;
 }
 
+// vérifie si la colonne visibilite existe (migration pas encore jouée sur certains postes)
 function corpo_actu_has_visibilite_column(PDO $pdo): bool
 {
     static $cache = null;
@@ -171,6 +182,7 @@ function corpo_actu_has_visibilite_column(PDO $pdo): bool
     return $cache;
 }
 
+// ajoute le point à l'alias si nécessaire ("a" → "a.")
 function corpo_actu_sql_prefix(string $alias): string
 {
     if ($alias === '') {
@@ -183,6 +195,7 @@ function corpo_actu_sql_prefix(string $alias): string
     return $alias . '.';
 }
 
+// condition SQL pour les actus publiques
 function corpo_actu_sql_public_only(PDO $pdo, string $tableAlias = ''): string
 {
     if (!corpo_actu_has_visibilite_column($pdo)) {
@@ -192,6 +205,7 @@ function corpo_actu_sql_public_only(PDO $pdo, string $tableAlias = ''): string
     return "IFNULL({$c},'public')='public'";
 }
 
+// actus publiques ou réservées aux membres (pour les utilisateurs connectés)
 function corpo_actu_sql_public_or_members(PDO $pdo, string $tableAlias): string
 {
     if (!corpo_actu_has_visibilite_column($pdo)) {

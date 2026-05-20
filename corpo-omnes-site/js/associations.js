@@ -1,4 +1,5 @@
-
+// Filtres pour la page associations
+// les données sont dans les data-* des cartes
 
 (function () {
   'use strict';
@@ -39,17 +40,15 @@
       var campus = card.dataset.campus || '';
 
       var okSearch = !q || nom.indexOf(q) !== -1 || desc.indexOf(q) !== -1;
-
+      // les assos "Toutes écoles" passent toujours le filtre école
       var okEcole = !state.ecole
                  || ecole === state.ecole
                  || ecole === 'Toutes';
-
       var okType = !state.type || type === state.type;
-
+      // idem pour campus = 'Tous' (activités sur les deux campus)
       var okCampus = !state.campus
                    || campus === state.campus
                    || campus === 'Tous';
-
       var okActive = state.showInactive ? true : isCardActive(card);
 
       var show = okSearch && okEcole && okType && okCampus && okActive;
@@ -62,6 +61,7 @@
       }
     });
 
+    // tri des assos (par type ou par nom)
     if (state.sort === 'type') {
       var typeOrder = ['Corpo', 'BDE', 'BDS', 'Fédération', 'Association', 'Junior'];
       visible.sort(function (a, b) {
@@ -71,7 +71,7 @@
         if (diff !== 0) return diff;
         return (a.dataset.nom || '').localeCompare(b.dataset.nom || '', 'fr');
       });
-    } else {
+    } else { /* alpha */
       visible.sort(function (a, b) {
         return (a.dataset.nom || '').localeCompare(b.dataset.nom || '', 'fr');
       });
@@ -101,6 +101,7 @@
     });
   }
 
+  // active le chip cliqué et désactive les autres du même groupe
   function activateChip(clickedChip, selector) {
     document.querySelectorAll(selector).forEach(function (c) {
       c.classList.remove('active');
@@ -150,7 +151,6 @@
   var resetBtn = document.getElementById('filter-reset');
   if (resetBtn) {
     resetBtn.addEventListener('click', function () {
-
       state.search = '';
       state.ecole  = '';
       state.type   = '';
@@ -164,6 +164,7 @@
       if (sortSel)     sortSel.value     = 'alpha';
       if (showInactiveCb) showInactiveCb.checked = false;
 
+      // réactive le premier chip de chaque groupe
       var ecoleChips = document.querySelectorAll('.filter-chip[data-ecole]');
       var typeChips  = document.querySelectorAll('.filter-chip[data-type]');
       ecoleChips.forEach(function (c, i) { c.classList.toggle('active', i === 0); });

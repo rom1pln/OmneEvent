@@ -1,4 +1,6 @@
-
+/**
+ * Champs .input-date-fr : saisie jj/mm/aaaa (masque léger + validation au blur).
+ */
 (function () {
   'use strict';
 

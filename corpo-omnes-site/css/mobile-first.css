@@ -1,4 +1,8 @@
-
+/* ============================================================
+   Corpo Omnes — Mobile-first (complément style.css)
+   Base tactile, safe areas, scroll horizontal des filtres,
+   formulaires sans zoom iOS, tableaux en cartes.
+   ============================================================ */
 
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
@@ -9,6 +13,7 @@
   --nav-offset: calc(var(--nav-h, 66px) + var(--safe-top));
 }
 
+/* ── Fondations ───────────────────────────────────────────── */
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -27,6 +32,7 @@ svg {
   height: auto;
 }
 
+/* Empêche le débordement horizontal sur petits écrans */
 main,
 .section,
 .page-hero,
@@ -34,6 +40,7 @@ main,
   max-width: 100%;
 }
 
+/* ── ≤ 768px : tactile & navigation ───────────────────────── */
 @media (max-width: 768px) {
   :root {
     --px: clamp(0.875rem, 4.2vw, 1.25rem);
@@ -49,6 +56,7 @@ main,
     padding-top: var(--safe-top);
   }
 
+  /* Hauteur fixe = --nav-offset : évite le vide entre la barre et le panneau burger */
   .nav__inner {
     height: var(--nav-h);
     min-height: var(--nav-h);
@@ -85,6 +93,7 @@ main,
     padding-bottom: 0.75rem;
   }
 
+  /* Formulaires : 16px min → pas de zoom auto sur iOS */
   input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
   select,
   textarea,
@@ -98,6 +107,7 @@ main,
     font-size: max(16px, 1rem);
   }
 
+  /* Zones tactiles boutons & chips */
   .btn,
   .btn--sm,
   .filter-chip,
@@ -119,6 +129,7 @@ main,
     padding-bottom: 0.5rem;
   }
 
+  /* Stats accueil : grille compacte (évite la pile verticale) */
   .stats-band {
     padding: var(--s6) 0;
   }
@@ -142,6 +153,7 @@ main,
     letter-spacing: 0.1em;
   }
 
+  /* Hero accueil : hauteur dynamique, titre lisible */
   .hero {
     min-height: min(100svh, 100dvh);
     padding-top: calc(var(--nav-offset) + var(--s10));
@@ -172,6 +184,7 @@ main,
     justify-content: center;
   }
 
+  /* Pages intérieures */
   .page-hero {
     padding-top: calc(var(--nav-offset) + var(--s8));
     padding-bottom: var(--s6);
@@ -194,6 +207,7 @@ main,
     gap: 0.25rem;
   }
 
+  /* Filtres : scroll horizontal (associations, partenaires, etc.) */
   .filter-chips,
   .asso-controls .filter-chips,
   .pt-filter-chips,
@@ -228,6 +242,7 @@ main,
     padding-bottom: 0.85rem;
   }
 
+  /* Drawer pleine largeur sur très petit écran */
   .drawer {
     width: 100%;
     max-width: 100%;
@@ -239,6 +254,7 @@ main,
     height: var(--touch-min);
   }
 
+  /* Retour haut : au-dessus du bandeau cookies / home indicator */
   .back-top {
     bottom: calc(var(--s6) + var(--safe-bottom) + 8px);
     right: calc(var(--s4) + var(--safe-right));
@@ -250,6 +266,7 @@ main,
     bottom: calc(140px + var(--safe-bottom));
   }
 
+  /* Profil & notes de frais */
   .profil-layout,
   .nf-layout {
     padding-left: var(--px);
@@ -263,6 +280,7 @@ main,
     padding: var(--s5);
   }
 
+  /* Tableaux publics (si data-label présent) */
   .admin-table:not(.admin-table--keep),
   table.data-table {
     display: block;
@@ -319,6 +337,7 @@ main,
     display: none;
   }
 
+  /* Modales & overlays */
   .cpt-modal__inner,
   .qr-modal__inner,
   .global-search__panel {
@@ -327,6 +346,7 @@ main,
     margin: var(--s4);
   }
 
+  /* Compta admin : onglets scrollables */
   .cpt-tabs {
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -347,6 +367,7 @@ main,
     align-items: center;
   }
 
+  /* KPIs compta en grille 2 colonnes */
   .cpt-kpis {
     grid-template-columns: 1fr 1fr;
     gap: var(--s3);
@@ -356,17 +377,20 @@ main,
     font-size: 1.15rem;
   }
 
+  /* Grilles cartes : une colonne */
   .grid--asso,
   .asso-grid,
   .pt-grid {
     grid-template-columns: 1fr !important;
   }
 
+  /* Cartes événement : empiler proprement */
   .event-card__actions .btn {
     width: 100%;
     justify-content: center;
   }
 
+  /* Inscription / auth */
   .register-wrap {
     padding: calc(var(--nav-offset) + var(--s6)) var(--px) var(--s8);
   }
@@ -380,6 +404,7 @@ main,
     padding: var(--s5) var(--s4);
   }
 
+  /* Footer : padding safe area */
   .footer {
     padding-bottom: calc(var(--s10) + var(--safe-bottom));
   }
@@ -388,6 +413,7 @@ main,
     justify-content: center;
   }
 
+  /* Réduit les effets hover qui décalent sur tactile */
   .asso-card:hover,
   .event-card:hover,
   .partner-card:hover {
@@ -403,7 +429,7 @@ main,
   .stat-item {
     max-width: none;
   }
-
+  /* 7e stat seule sur la dernière ligne → centrée */
   .stats-band .stat-item:last-child:nth-child(3n + 1) {
     grid-column: 2;
   }
@@ -415,6 +441,7 @@ main,
   }
 }
 
+/* ── ≤ 480px : très petits écrans ─────────────────────────── */
 @media (max-width: 480px) {
   .hero__eyebrow {
     font-size: 0.62rem;
@@ -448,6 +475,7 @@ main,
   }
 }
 
+/* ── Préférence mouvement réduit ─────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

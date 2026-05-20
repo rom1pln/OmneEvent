@@ -1,14 +1,15 @@
 <?php
-
+// page "mes assos" - réservé aux connectés
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/i18n.php';
 require_once __DIR__ . '/includes/billetterie.php';
 
-requireLogin();
+requireLogin(); // redirige vers login si pas connecté
 
 $userId = (int)$_SESSION['user_id'];
 
+// retirer une demande d'adhésion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'retirer_demande') {
     $stType = $_POST['structure_type'] ?? '';
     $stId   = (int)($_POST['structure_id'] ?? 0);
@@ -21,6 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'retir
     exit;
 }
 
+// structures de l'user (assos, BDE, BDS)
 $stmtStruct = $pdo->prepare(
     "SELECT sm.structure_type, sm.structure_id, sm.role_in_struct, sm.statut,
             a.nom, a.slug, a.type AS asso_type, a.ecole, a.color, a.campus, a.description, a.logo
@@ -32,6 +34,7 @@ $stmtStruct = $pdo->prepare(
 $stmtStruct->execute([$userId]);
 $mesStructures = $stmtStruct->fetchAll();
 
+// demandes en attente de l'user
 $stmtDem = $pdo->prepare(
     "SELECT da.*, a.nom AS struct_nom
      FROM demandes_adhesion da
@@ -42,12 +45,14 @@ $stmtDem = $pdo->prepare(
 $stmtDem->execute([$userId]);
 $demandesAttente = $stmtDem->fetchAll();
 
+// IDs des structures pour charger les actus et events
 $structIds = array_column($mesStructures, 'structure_id');
 
 $actus = $events = [];
 if (!empty($structIds)) {
     $in = implode(',', array_fill(0, count($structIds), '?'));
 
+    // Actualités récentes
     $stmtA = $pdo->prepare(
         "SELECT ac.*, a.nom AS struct_nom, a.color
          FROM actualites ac
@@ -59,6 +64,7 @@ if (!empty($structIds)) {
     $stmtA->execute($structIds);
     $actus = $stmtA->fetchAll();
 
+    // Événements à venir
     $stmtE = $pdo->prepare(
         "SELECT ev.*, a.nom AS struct_nom, a.color
          FROM evenements ev
@@ -88,7 +94,8 @@ require_once __DIR__ . '/includes/header.php';
 
   <div class="mes-page container" style="padding-top:var(--s8);padding-bottom:var(--s12)">
 
-    <?php if (empty($mesStructures) && empty($demandesAttente)): ?>
+  <!-- Mes structures -->
+  <?php if (empty($mesStructures) && empty($demandesAttente)): ?>
     <div class="mes-empty">
       <p><?= htmlspecialchars(corpo_t('mes_asso.empty1')) ?></p>
       <a href="associations.php" class="btn-pill btn-primary"><?= htmlspecialchars(corpo_t('mes_asso.btn_explore')) ?></a>
@@ -149,7 +156,8 @@ require_once __DIR__ . '/includes/header.php';
 
   <?php endif; ?>
 
-    <section class="mes-section">
+  <!-- Événements à venir -->
+  <section class="mes-section">
     <h2><?= htmlspecialchars(corpo_t('mes_asso.events_h2')) ?></h2>
     <?php if (empty($events)): ?>
       <p class="mes-empty-inline"><?= htmlspecialchars(corpo_t('mes_asso.empty_events')) ?></p>
@@ -179,7 +187,8 @@ require_once __DIR__ . '/includes/header.php';
     <?php endif; ?>
   </section>
 
-    <section class="mes-section">
+  <!-- Actualités -->
+  <section class="mes-section">
     <h2><?= htmlspecialchars(corpo_t('mes_asso.actus_h2')) ?></h2>
     <?php if (empty($actus)): ?>
       <p class="mes-empty-inline"><?= htmlspecialchars(corpo_t('mes_asso.empty_actus')) ?></p>
@@ -200,6 +209,7 @@ require_once __DIR__ . '/includes/header.php';
     <?php endif; ?>
   </section>
 
-  </div></main>
+  </div><!-- /.mes-page.container -->
+</main>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

@@ -1,4 +1,4 @@
-
+// Filtres partenaires + copie code promo
 (function () {
   const grid  = document.getElementById('partner-grid');
   const empty = document.getElementById('pt-empty');
@@ -27,7 +27,10 @@
       if (show) n++;
     });
 
-    if (count) count.textContent = n + ' résultat' + (n > 1 ? 's' : '');
+    if (count) {
+      const tpl = count.dataset.tpl || '%d résultats';
+      count.textContent = tpl.replace('%d', String(n));
+    }
     if (empty) empty.hidden = n > 0;
   }
 
@@ -47,6 +50,7 @@
   if (srch) srch.addEventListener('input', e => { activeSearch = e.target.value.toLowerCase().trim(); applyFilters(); });
 })();
 
+// copie le code promo dans le presse-papiers et affiche un toast
 window.copyCode = function(el, code) {
   navigator.clipboard.writeText(code).then(() => {
     const toast = document.getElementById('copy-toast');

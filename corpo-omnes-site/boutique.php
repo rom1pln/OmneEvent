@@ -7,6 +7,7 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/boutique.php';
 require_once __DIR__ . '/includes/i18n.php';
 
+// redirige après action panier pour éviter la re-soumission
 function boutique_cart_redirect_back(): void {
     $qs = http_build_query($_GET);
     header('Location: boutique.php' . ($qs !== '' ? '?' . $qs : ''), true, 303);

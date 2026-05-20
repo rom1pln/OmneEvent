@@ -1,5 +1,8 @@
 <?php
-
+/**
+ * reset-password.php — Nouveau mot de passe via lien reçu par mail.
+ * Page autonome (db.php seulement) pour limiter les erreurs fatales sur hébergement mutualisé.
+ */
 $resetLog = static function (string $msg): void {
     $file = __DIR__ . '/logs/reset-password.log';
     $dir  = dirname($file);
@@ -56,6 +59,7 @@ if (!isset($pdo) || !$pdo instanceof PDO) {
     exit('Configuration base de données invalide.');
 }
 
+/** @return array<string,mixed>|null */
 $lookupResetToken = static function (PDO $pdo, string $tokenHash): ?array {
     if (strlen($tokenHash) !== 64) {
         return null;

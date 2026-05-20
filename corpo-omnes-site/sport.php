@@ -5,6 +5,7 @@ $page  = 'sport';
 require_once 'includes/db.php';
 require_once 'includes/auth.php';
 
+// ── Inscription rapide depuis la page sport (AJAX-free) ──────
 $userId    = isLoggedIn() ? (int)$_SESSION['user_id'] : 0;
 $flashSport = '';
 
@@ -14,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $userId) {
     $motiv   = trim($_POST['message'] ?? '');
 
     if ($sportId && $action === 'rejoindre') {
-
+        // Sport club → demande de validation (pas d'inscription directe)
         $chk = $pdo->prepare("SELECT id FROM demandes_adhesion WHERE user_id=? AND structure_type='sport' AND structure_id=? AND statut='en_attente'");
         $chk->execute([$userId, $sportId]);
         if ($chk->fetchColumn()) {
@@ -29,13 +30,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $userId) {
         $pdo->prepare("DELETE FROM inscriptions_sport WHERE user_id=? AND sport_id=?")->execute([$userId, $sportId]);
         $pdo->prepare("UPDATE sports SET inscrits = GREATEST(0, inscrits-1) WHERE id=?")->execute([$sportId]);
         $pdo->prepare("DELETE FROM structure_membres WHERE user_id=? AND structure_type='sport' AND structure_id=?")->execute([$userId, $sportId]);
-
+        // Si l'user perd son dernier statut admin via ce retrait, ramène son rôle global
+        // de 'membre_corpo' à 'user' pour qu'il n'ait plus accès au panneau admin.
         syncGlobalRoleAfterStructChange($pdo, $userId);
         $flashSport = corpo_t('sport.flash_left');
     }
     $sports = $pdo->query("SELECT * FROM sports WHERE categorie = 'club' ORDER BY id")->fetchAll();
 }
 
+// Mes inscriptions : map sport_id → statut
 $mesInscriptions = [];
 if ($userId) {
     $stmtMi = $pdo->prepare("SELECT sport_id, statut FROM inscriptions_sport WHERE user_id = ?");
@@ -47,14 +50,17 @@ if ($userId) {
 
 require_once 'includes/header.php';
 
+// Sports clubs avec leurs entraînements
 $sports  = $pdo->query("SELECT * FROM sports WHERE categorie = 'club' ORDER BY id")->fetchAll();
 $libres  = $pdo->query("SELECT * FROM sports WHERE categorie = 'individuel' ORDER BY nom")->fetchAll();
 
+// Entraînements par sport_id
 $entrainements = [];
 foreach ($pdo->query("SELECT * FROM sport_entrainements ORDER BY sport_id, id") as $row) {
     $entrainements[$row['sport_id']][] = $row;
 }
 
+// Derniers résultats (tous sports confondus, 6 max)
 $resultats = $pdo->query(
     "SELECT r.*, s.nom AS sport_nom, s.icon AS sport_icon, s.couleur
      FROM sport_resultats r
@@ -81,7 +87,8 @@ $resultats = $pdo->query(
       </div>
     </section>
 
-        <section class="section" aria-labelledby="clubs-title">
+    <!-- CLUBS -->
+    <section class="section" aria-labelledby="clubs-title">
       <div class="container">
         <span class="section-label"><?= htmlspecialchars(corpo_t('sport.section_clubs_label')) ?></span>
         <h2 class="section-title" id="clubs-title"><?= htmlspecialchars(sprintf(corpo_t('sport.section_clubs_title'), count($sports))) ?></h2>
@@ -120,7 +127,7 @@ $resultats = $pdo->query(
                   <span><?= $dispo > 0 ? htmlspecialchars(sprintf(corpo_t('sport.places_avail'), $dispo)) : htmlspecialchars(corpo_t('common.full')) ?></span>
                 </div>
                 <?php
-
+                  // Vérifie demande en attente
                   $enAttente = false;
                   if ($userId) {
                       $chkPend = $pdo->prepare("SELECT id FROM demandes_adhesion WHERE user_id=? AND structure_type='sport' AND structure_id=? AND statut='en_attente'");
@@ -164,7 +171,8 @@ $resultats = $pdo->query(
       </div>
     </section>
 
-        <section class="section section--alt" aria-labelledby="resultats-title">
+    <!-- RÉSULTATS -->
+    <section class="section section--alt" aria-labelledby="resultats-title">
       <div class="container">
         <span class="section-label">Résultats</span>
         <h2 class="section-title section-title--center" id="resultats-title">Derniers matchs</h2>
@@ -186,6 +194,7 @@ $resultats = $pdo->query(
       </div>
     </section>
 
+    <!-- SPORTS EN ACCÈS LIBRE ──────────────────────────────── -->
     <section class="section" aria-labelledby="indiv-title">
       <div class="container">
         <span class="section-label">Sans inscription</span>
@@ -243,7 +252,8 @@ $resultats = $pdo->query(
               </div>
             <?php endforeach; ?>
 
-                        <div class="sport-indiv-card sport-indiv-card--more">
+            <!-- Carte "Proposer" toujours en dernier -->
+            <div class="sport-indiv-card sport-indiv-card--more">
               <span class="sport-indiv-card__icon">＋</span>
               <div>
                 <h3 class="sport-indiv-card__name">Proposer un sport</h3>

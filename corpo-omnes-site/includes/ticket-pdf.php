@@ -1,4 +1,5 @@
 <?php
+// génère le PDF d'un billet (1 page A4) avec FPDF + GD pour le QR
 
 if (!class_exists('FPDF', false)) {
     if (!defined('FPDF_FONTPATH')) {
@@ -8,7 +9,7 @@ if (!class_exists('FPDF', false)) {
 }
 
 if (!function_exists('corpo_ticket_pdf_utf8')) {
-
+    // conversion UTF-8 → latin-1 pour FPDF
     function corpo_ticket_pdf_utf8(string $s): string {
         if ($s === '') return '';
         $out = @iconv('UTF-8', 'ISO-8859-1//TRANSLIT//IGNORE', $s);
@@ -17,7 +18,7 @@ if (!function_exists('corpo_ticket_pdf_utf8')) {
 }
 
 if (!function_exists('corpo_ticket_pdf_qr_png')) {
-
+    // génère le QR en PNG via GD (null si GD pas dispo)
     function corpo_ticket_pdf_qr_png(string $payload, int $pixels = 600): ?string {
         if (!function_exists('imagecreate') || !function_exists('imagepng')) {
             return null;
@@ -58,6 +59,7 @@ if (!function_exists('corpo_ticket_pdf_qr_png')) {
     }
 }
 
+// construit le PDF pour un billet, retourne null si erreur
 function corpo_ticket_pdf_data(array $billet, array $event): ?string {
     if (!class_exists('FPDF', false)) return null;
 
@@ -79,6 +81,7 @@ function corpo_ticket_pdf_data(array $billet, array $event): ?string {
     $heure  = (string)($event['heure'] ?? '');
     $codeShort = !empty($billet['qr_token']) ? strtoupper(substr((string)$billet['qr_token'], 0, 8)) : '';
 
+    // PDF A4 portrait, marges nulles, on dessine soi-même.
     $pdf = new FPDF('P', 'mm', 'A4');
     $pdf->SetMargins(0, 0, 0);
     $pdf->SetAutoPageBreak(false);
@@ -86,9 +89,10 @@ function corpo_ticket_pdf_data(array $billet, array $event): ?string {
     $pdf->SetTitle('Billet ' . $bid, true);
     $pdf->SetAuthor('Corpo Omnes Lyon', true);
 
-    $pdf->SetFillColor(93, 2, 130);
+    // bandeau violet en haut
+    $pdf->SetFillColor(93, 2, 130); // #5D0282
     $pdf->Rect(0, 0, 210, 32, 'F');
-    $pdf->SetFillColor(139, 47, 201);
+    $pdf->SetFillColor(139, 47, 201); // bord bas plus clair
     $pdf->Rect(0, 32, 210, 2, 'F');
     $pdf->SetTextColor(255, 255, 255);
     $pdf->SetFont('Helvetica', 'B', 22);
@@ -101,9 +105,10 @@ function corpo_ticket_pdf_data(array $billet, array $event): ?string {
     $pdf->SetXY(150, 14);
     $pdf->Cell(48, 8, corpo_ticket_pdf_utf8('N° ' . $bid), 0, 0, 'R');
 
+    // bloc QR
     $qrPngTmp = null;
     if (!empty($billet['qr_token'])) {
-
+        // même payload que le QR serveur pour que le scanner valide hors-ligne
         if (!function_exists('billet_qr_payload')) {
             require_once __DIR__ . '/billetterie.php';
         }
@@ -114,14 +119,15 @@ function corpo_ticket_pdf_data(array $billet, array $event): ?string {
         if ($png !== null) {
             $qrPngTmp = tempnam(sys_get_temp_dir(), 'qr_') . '.png';
             file_put_contents($qrPngTmp, $png);
-
+            // Place le QR centré
             $qrSize = 80;
             $qrX    = (210 - $qrSize) / 2;
             $pdf->Image($qrPngTmp, $qrX, 50, $qrSize, $qrSize, 'PNG');
         }
     }
 
-    $pdf->SetTextColor(26, 0, 64);
+    // bloc infos du billet
+    $pdf->SetTextColor(26, 0, 64); // #1a0040
     $pdf->SetFont('Helvetica', 'B', 18);
     $pdf->SetXY(0, 140);
     $pdf->Cell(210, 9, corpo_ticket_pdf_utf8($titre), 0, 0, 'C');
@@ -138,6 +144,7 @@ function corpo_ticket_pdf_data(array $billet, array $event): ?string {
         $pdf->Cell(210, 6, corpo_ticket_pdf_utf8($lieu), 0, 0, 'C');
     }
 
+    // Pointillé séparateur
     $pdf->SetDrawColor(196, 181, 253);
     $pdf->SetLineWidth(0.3);
     $y = 170;
@@ -145,6 +152,7 @@ function corpo_ticket_pdf_data(array $billet, array $event): ?string {
         $pdf->Line($x, $y, $x + 2, $y);
     }
 
+    // ─── Bloc détails participant ────────────────────────────
     $pdf->SetFont('Helvetica', 'B', 9);
     $pdf->SetTextColor(93, 2, 130);
     $pdf->SetXY(18, 178);
@@ -177,6 +185,7 @@ function corpo_ticket_pdf_data(array $billet, array $event): ?string {
         $pdf->Cell(180, 6, corpo_ticket_pdf_utf8($codeShort . '...'), 0, 0, 'L');
     }
 
+    // Footer
     $pdf->SetDrawColor(232, 217, 245);
     $pdf->Line(18, 268, 192, 268);
     $pdf->SetFont('Helvetica', '', 9);

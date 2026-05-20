@@ -5,86 +5,9 @@ require_once '../includes/db.php';
 require_once '../includes/billetterie.php';
 require_once '../includes/upload-logo.php';
 require_once 'includes/admin-header.php';
-
-const EVT_EMOJI_SUGGESTIONS = [
-    '🎉', '🎊', '🎭', '🎵', '🎤', '🎸', '⚽', '🏀', '🏐', '🍻',
-    '🎓', '💜', '🔥', '✨', '🎁', '🎪', '🎬', '🍕', '🥂', '🏆',
-    '📣', '🤝', '🌟', '💃', '🕺', '🎃', '❤️', '🚀', '🌈', '☀️',
-];
-
-function evt_admin_media_fields(string $iconInputId, string $iconValue, ?string $bannierePath = null): void
-{
-    $iconValue = evt_sanitize_icon($iconValue);
-    $bannSrc   = evt_banniere_src($bannierePath);
-    ?>
-    <div class="form-row evt-media-row">
-      <div class="form-col">
-        <label>Icône (emoji)</label>
-        <div class="evt-icon-picker">
-          <span class="evt-icon-preview" aria-hidden="true"><?= $iconValue ?></span>
-          <input type="text" name="icon" id="<?= htmlspecialchars($iconInputId) ?>"
-                 class="evt-icon-input" value="<?= htmlspecialchars($iconValue) ?>"
-                 inputmode="text" autocomplete="off" placeholder="Ex. 🎉">
-          <div class="evt-icon-suggestions" role="group" aria-label="Emojis suggérés">
-            <?php foreach (EVT_EMOJI_SUGGESTIONS as $emo): ?>
-              <button type="button" class="evt-icon-btn" data-emoji="<?= htmlspecialchars($emo) ?>"><?= $emo ?></button>
-            <?php endforeach; ?>
-          </div>
-        </div>
-      </div>
-      <div class="form-col" style="flex:2">
-        <label>Bannière <small style="color:var(--text-muted)">(JPG, PNG, WebP — max 5 Mo)</small></label>
-        <?php if ($bannSrc): ?>
-          <div class="evt-banniere-preview">
-            <img src="<?= htmlspecialchars($bannSrc) ?>" alt="Bannière actuelle" loading="lazy">
-            <label class="evt-banniere-remove">
-              <input type="checkbox" name="banniere_remove" value="1"> Supprimer la bannière
-            </label>
-          </div>
-        <?php endif; ?>
-        <input type="file" name="banniere_file" accept="image/jpeg,image/png,image/webp,image/gif">
-        <input type="url" name="banniere_url" placeholder="Ou URL d'image https://…"
-               style="margin-top:8px"
-               value="<?= ($bannierePath && preg_match('#^https?://#i', $bannierePath)) ? htmlspecialchars($bannierePath) : '' ?>">
-      </div>
-    </div>
-    <?php
-}
-
-function evt_admin_access_fields(string $suffix, string $structType, ?int $structId, array $ev = []): void
-{
-    $vis = evt_normalize_visibilite($ev['visibilite'] ?? 'public');
-    $inscM = (int)($ev['inscription_membres'] ?? 0) === 1;
-    $isCorpo = ($structType === 'corpo' || !$structId);
-    ?>
-    <div class="form-row evt-access-row" id="evt-access-row-<?= htmlspecialchars($suffix) ?>"<?= $isCorpo ? ' hidden' : '' ?>>
-      <div class="form-col">
-        <label>Visibilité dans l'agenda</label>
-        <select name="visibilite" class="evt-vis-select">
-          <option value="public"<?= $vis === 'public' ? ' selected' : '' ?>>Public — visible par tous sur « Événements »</option>
-          <option value="membres"<?= $vis === 'membres' ? ' selected' : '' ?>>Membres — visible uniquement par les adhérents et membres de la structure</option>
-        </select>
-        <small style="color:var(--text-muted);display:block;margin-top:4px">
-          En mode « Membres », l'événement apparaît sur la page de l'asso et dans « Mes associations », pas dans l'agenda public.
-        </small>
-      </div>
-      <div class="form-col">
-        <label class="evt-insc-toggle__label" style="margin-top:1.6rem">
-          <input type="checkbox" name="inscription_membres" value="1"<?= $inscM ? ' checked' : '' ?>>
-          <span>
-            <strong>Inscription réservée aux adhérents et membres</strong>
-            <small style="color:var(--text-muted);display:block">Seuls les personnes ayant rejoint la structure pourront s'inscrire ou acheter un billet.</small>
-          </span>
-        </label>
-      </div>
-    </div>
-    <?php if ($isCorpo): ?>
-    <input type="hidden" name="visibilite" value="public">
-    <?php endif; ?>
-    <?php
-}
 requireBureau();
 
+// listes de ref pour les selects
 $ECOLES = ['ECE','ESCE','HEIP','INSEEC Bachelor','INSEEC BBA','INSEEC BTS','INSEEC GE','INSEEC MSc','Sup de Pub'];
 $CAMPUS = ['Citroën','Citadelle'];
 $EVT_TYPES = ['Corpo','BDE','Sport','RSE','Association'];
@@ -99,6 +22,7 @@ $MODE_ICONS = [
     'billetterie_connexion' => '🎟',
 ];
 
+// quelques fonctions utilitaires pour éviter de répéter du code
 function organisateurFromStructure(PDO $pdo, string $type, ?int $id): string {
     if (!$id) return 'Corpo Omnes Lyon';
     if ($type === 'asso') {
@@ -135,6 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     global $ECOLES, $CAMPUS, $MODES_INSCRIPTION;
     $action = $_POST['action'] ?? '';
 
+    // ajout d'un événement
     if ($action === 'add') {
         $titre       = trim($_POST['titre'] ?? '');
         $slug        = preg_replace('/[^a-z0-9]+/', '-', strtolower($titre)) . '-' . time();
@@ -159,8 +84,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $inscOuv    = corpo_datetime_from_input($_POST['inscriptions_ouvertes_le'] ?? '');
         $inscFer    = corpo_datetime_from_input($_POST['inscriptions_fermees_le'] ?? '');
         $ouvertExt  = isset($_POST['ouvert_externes']) ? 1 : 0;
-        $evtVis         = evt_parse_visibilite_from_post($_POST, $structType, $structId);
-        $evtInscMembres = evt_parse_inscription_membres_from_post($_POST, $structType, $structId);
 
         $canSubmitEvt = isAdminCorpo();
         if (!$canSubmitEvt) {
@@ -176,15 +99,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$canSubmitEvt) {
             $flash = '<div class="flash flash--err">Tu n\'es pas autorisé à créer un événement pour cette structure.</div>';
         } elseif (isAdminCorpo()) {
+            $banniere = evt_upload_banniere(null);
             $pdo->prepare(
                 "INSERT INTO evenements
                    (slug, titre, date, date_fin, heure, heure_fin, lieu, campus,
                     organisateur, structure_type, structure_id, type, description,
                     mode_inscription, lien_billetterie, email_contact, inscription_message,
-                    places, prix, max_billets_par_personne, inscriptions_ouvertes_le, inscriptions_fermees_le, ouvert_externes,
-                    visibilite, inscription_membres, icon,
+                    places, prix, max_billets_par_personne, inscriptions_ouvertes_le, inscriptions_fermees_le, ouvert_externes, icon, banniere,
                     ecoles_invitees, campus_invites, affichage_tv, statut, auteur_id)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'publie',?)"
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'publie',?)"
             )->execute([
                 $slug, $titre,
                 $_POST['date'] ?? '', trim($_POST['date_fin'] ?? '') ?: null,
@@ -197,19 +120,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 (int)($_POST['places'] ?? 0),
                 $prix, $maxBillets,
                 $inscOuv ?: null, $inscFer ?: null, $ouvertExt,
-                $evtVis, $evtInscMembres,
-                evt_sanitize_icon($_POST['icon'] ?? null),
+                evt_normalize_icon($_POST['icon'] ?? null),
+                $banniere,
                 json_encode($ecolesInv, JSON_UNESCAPED_UNICODE),
                 json_encode($campusInv, JSON_UNESCAPED_UNICODE),
                 $affichageTv,
                 currentUserId(),
             ]);
-            $newEvtId = (int)$pdo->lastInsertId();
-            $banniere = uploadLogo('evenements', 'banniere_file', 'banniere_url', null, 5 * 1024 * 1024);
-            if ($banniere) {
-                $pdo->prepare('UPDATE evenements SET banniere=? WHERE id=?')->execute([$banniere, $newEvtId]);
-            }
-            $flash = '<div class="flash flash--ok">Événement publié. <a href="evenement.php?id=' . $newEvtId . '">⚙ Configurer l\'inscription / la billetterie →</a></div>';
+            $flash = '<div class="flash flash--ok">Événement publié. <a href="evenement.php?id=' . (int)$pdo->lastInsertId() . '">⚙ Configurer l\'inscription / la billetterie →</a></div>';
         } else {
             $payload = json_encode([
                 'titre' => $titre, 'date' => $_POST['date'] ?? '',
@@ -225,8 +143,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'inscription_message' => $inscMsg,
                 'ecoles_invitees' => $ecolesInv, 'campus_invites' => $campusInv,
                 'affichage_tv' => $affichageTv,
-                'visibilite' => $evtVis,
-                'inscription_membres' => $evtInscMembres,
             ]);
             $pdo->prepare("INSERT INTO demandes_validation (user_id,type,structure_type,structure_id,payload) VALUES (?,?,?,?,?)")
                 ->execute([currentUserId(), 'evenement', $structType, $structId, $payload]);
@@ -234,6 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // modif d'un événement existant
     if ($action === 'update' && !empty($_POST['id'])) {
         $evtId = (int)$_POST['id'];
         $stEv  = $pdo->prepare('SELECT * FROM evenements WHERE id = ?');
@@ -262,20 +179,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $inscOuv     = corpo_datetime_from_input($_POST['inscriptions_ouvertes_le'] ?? '');
             $inscFer     = corpo_datetime_from_input($_POST['inscriptions_fermees_le'] ?? '');
             $ouvertExt   = isset($_POST['ouvert_externes']) ? 1 : 0;
-            $evtVis         = evt_parse_visibilite_from_post($_POST, $structType, $structId);
-            $evtInscMembres = evt_parse_inscription_membres_from_post($_POST, $structType, $structId);
 
             $ecolesInv   = parseInvites($_POST, 'ecoles_invitees', $ECOLES);
             $campusInv   = parseInvites($_POST, 'campus_invites',  $CAMPUS);
             $affichageTv = isset($_POST['affichage_tv']) ? 1 : 0;
             $campus      = buildCampusLegacy($campusInv);
-
-            $banniere = $rowEv['banniere'] ?? null;
-            if (!empty($_POST['banniere_remove'])) {
-                $banniere = null;
-            } else {
-                $banniere = uploadLogo('evenements', 'banniere_file', 'banniere_url', $banniere, 5 * 1024 * 1024);
-            }
+            $banniere    = evt_upload_banniere($rowEv['banniere'] ?? null);
 
             $payload = [
                 'id' => $evtId,
@@ -301,10 +210,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'inscriptions_ouvertes_le' => $inscOuv ?: null,
                 'inscriptions_fermees_le' => $inscFer ?: null,
                 'ouvert_externes' => $ouvertExt,
-                'icon' => evt_sanitize_icon($_POST['icon'] ?? null),
+                'icon' => evt_normalize_icon($_POST['icon'] ?? null),
                 'banniere' => $banniere,
-                'visibilite' => $evtVis,
-                'inscription_membres' => $evtInscMembres,
                 'ecoles_invitees' => $ecolesInv,
                 'campus_invites' => $campusInv,
                 'affichage_tv' => $affichageTv,
@@ -328,11 +235,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // suppression (réservé corpo)
     if ($action === 'delete' && isAdminCorpo()) {
         $pdo->prepare("DELETE FROM evenements WHERE id=?")->execute([(int)$_POST['id']]);
         $flash = '<div class="flash flash--ok">Événement supprimé.</div>';
     }
 
+    // on bascule publie/en_attente
     if ($action === 'toggle_statut' && isAdminCorpo()) {
         $new = $_POST['statut'] === 'publie' ? 'en_attente' : 'publie';
         $pdo->prepare("UPDATE evenements SET statut=? WHERE id=?")->execute([$new, (int)$_POST['id']]);
@@ -340,6 +249,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// on charge les events selon le périmètre de l'user
 if (isAdminCorpo()) {
     $events = $pdo->query("SELECT * FROM evenements ORDER BY date DESC")->fetchAll();
 } else {
@@ -386,6 +296,7 @@ if (isAdminCorpo()) {
     }
 }
 
+// structures dispo pour le formulaire de création
 if (isAdminCorpo()) {
     $assos  = $pdo->query("SELECT id, nom, type, ecole FROM associations ORDER BY type, nom")->fetchAll();
     $sports = $pdo->query("SELECT id, nom FROM sports ORDER BY nom")->fetchAll();
@@ -426,6 +337,7 @@ if (isAdminCorpo()) {
     }
 }
 
+// calendrier scolaire pour afficher les dates d'exam/vacances en fond
 $calEntries = $pdo->query("SELECT id, ecole, type, titre, date_debut, date_fin, promotions FROM calendrier_scolaire ORDER BY date_debut ASC")->fetchAll();
 $CAL_TYPE_COLORS = [
     'vacances'            => '#3ECF8E',
@@ -463,6 +375,7 @@ $jsCalEntries = array_map(function($e) use ($CAL_TYPE_COLORS, $CAL_TYPE_LABELS) 
     ];
 }, $calEntries);
 
+// format pour le JS du calendrier
 $jsEvents = array_map(function($ev) {
     $ecoles = $ev['ecoles_invitees'] ? json_decode($ev['ecoles_invitees'], true) : ['Tous'];
     return [
@@ -480,6 +393,7 @@ $jsEvents = array_map(function($ev) {
     ];
 }, $events);
 
+// valeurs uniques pour les filtres
 $organisateursDistincts = array_values(array_unique(array_filter(array_map(fn($e) => $e['organisateur'] ?? '', $events))));
 sort($organisateursDistincts);
 ?>
@@ -491,6 +405,7 @@ sort($organisateursDistincts);
   <div class="flash flash--warn">Bureau / resp. événements : créations et modifications sont soumises à validation Corpo.</div>
 <?php endif; ?>
 
+<!-- ============ VUE D'ENSEMBLE - CALENDRIER + ÉVÉNEMENTS ============ -->
 <div class="admin-card adcal-card">
   <div class="adcal-toolbar">
     <div class="adcal-nav">
@@ -545,17 +460,34 @@ sort($organisateursDistincts);
   <div class="adcal-grid" id="evt-cal-grid" role="grid" aria-labelledby="evt-cal-title"></div>
 </div>
 
+<!-- ============ FORMULAIRE AJOUT ============ -->
 <div class="admin-card">
   <h2>Ajouter un événement</h2>
   <form method="post" class="admin-form" id="evt-add-form" enctype="multipart/form-data">
     <input type="hidden" name="action" value="add">
 
+    <!-- Titre + icône + bannière -->
     <div class="form-row">
       <div class="form-col" style="flex:3"><label>Titre</label><input type="text" name="titre" required></div>
+      <div class="form-col">
+        <label>Icône (emoji)</label>
+        <input type="text" name="icon" class="evt-emoji-input" value="🎉" maxlength="16" placeholder="🎉">
+        <small style="color:var(--text-muted);font-size:.75rem">Un emoji affiché sur les cartes et la page publique.</small>
+      </div>
     </div>
-    <?php evt_admin_media_fields('evt-icon-add', '🎉'); ?>
+    <div class="form-row">
+      <div class="form-col" style="flex:2">
+        <label>Bannière <small style="color:var(--text-muted)">(JPG, PNG, WebP — max 5 Mo)</small></label>
+        <input type="file" name="banniere_file" accept="image/jpeg,image/png,image/webp,image/gif">
+      </div>
+      <div class="form-col" style="flex:2">
+        <label>ou URL de bannière</label>
+        <input type="url" name="banniere_url" placeholder="https://…">
+      </div>
+    </div>
 
-        <div class="form-row">
+    <!-- Dates + heures + lieu -->
+    <div class="form-row">
       <div class="form-col"><label>Date début</label><input type="date" name="date" id="evt-date" required></div>
       <div class="form-col"><label>Date fin <small style="color:var(--text-muted)">(opt.)</small></label><input type="date" name="date_fin" id="evt-date-fin"></div>
       <div class="form-col"><label>Heure début</label><input type="text" name="heure" placeholder="20h00"></div>
@@ -563,9 +495,11 @@ sort($organisateursDistincts);
       <div class="form-col" style="flex:2"><label>Lieu</label><input type="text" name="lieu"></div>
     </div>
 
-        <div class="evt-context" id="evt-context" hidden></div>
+    <!-- Bandeau de contexte (rempli dynamiquement) -->
+    <div class="evt-context" id="evt-context" hidden></div>
 
-        <div class="form-row">
+    <!-- Structure = organisateur + type -->
+    <div class="form-row">
       <div class="form-col">
         <label>Type de structure</label>
         <select name="structure_type" id="evtTypeSelect" onchange="syncEvtStructList(this.value)">
@@ -602,13 +536,8 @@ sort($organisateursDistincts);
       </div>
     </div>
 
-    <?php
-      $addStructType = isAdminCorpo() ? 'corpo' : (!empty($assos) ? 'asso' : 'sport');
-      $addStructId   = isAdminCorpo() ? null : (int)($assos[0]['id'] ?? $sports[0]['id'] ?? 0) ?: null;
-      evt_admin_access_fields('add', $addStructType, $addStructId);
-    ?>
-
-        <div class="form-row">
+    <!-- Écoles invitées -->
+    <div class="form-row">
       <div class="form-col" style="flex:2">
         <label>Écoles invitées</label>
         <div style="display:flex;flex-wrap:wrap;gap:.5rem .8rem;margin-top:.4rem">
@@ -633,10 +562,12 @@ sort($organisateursDistincts);
       </div>
     </div>
 
-        <div class="form-row">
+    <!-- Description -->
+    <div class="form-row">
       <div class="form-col"><label>Description</label><textarea name="description" rows="4"></textarea></div>
     </div>
 
+    <!-- ============ INSCRIPTION & BILLETTERIE ============ -->
     <fieldset class="evt-insc-section">
       <legend>🎟 Inscription & Billetterie</legend>
 
@@ -662,7 +593,8 @@ sort($organisateursDistincts);
         <?php endforeach; ?>
       </div>
 
-            <div class="evt-insc-options">
+      <!-- Options conditionnelles -->
+      <div class="evt-insc-options">
         <div data-show-for="email,billetterie_email" style="display:none">
           <label>Email de réception (organisateur)
             <input type="email" name="email_contact" placeholder="contact@asso.fr">
@@ -733,6 +665,7 @@ sort($organisateursDistincts);
   </form>
 </div>
 
+<!-- ============ FILTRES LISTE ============ -->
 <div class="admin-card evt-list-filters">
   <div class="evt-filters-bar">
     <label class="adcal-filter">
@@ -775,6 +708,7 @@ sort($organisateursDistincts);
   </div>
 </div>
 
+<!-- ============ LISTE ============ -->
 <div class="admin-card" style="padding:0;overflow:hidden">
   <table class="admin-table" id="evt-list-table">
     <thead>
@@ -802,13 +736,7 @@ sort($organisateursDistincts);
             data-search="<?= htmlspecialchars(mb_strtolower(($ev['titre'] ?? '').' '.($ev['lieu'] ?? '').' '.($ev['organisateur'] ?? ''))) ?>">
           <td data-label="#"><?= $ev['id'] ?></td>
           <td data-label="Titre">
-            <strong><?= evt_render_icon($ev['icon'] ?? null) ?> <?= htmlspecialchars($ev['titre']) ?></strong>
-            <?php if (evt_normalize_visibilite($ev['visibilite'] ?? 'public') === 'membres'): ?>
-              <span class="tag" style="font-size:.65rem;margin-left:4px" title="Visible uniquement par les membres de la structure">🔒 Membres</span>
-            <?php endif; ?>
-            <?php if ((int)($ev['inscription_membres'] ?? 0) === 1): ?>
-              <span class="tag" style="font-size:.65rem;margin-left:4px" title="Inscription réservée aux adhérents et membres">🎫 Inscr. membres</span>
-            <?php endif; ?>
+            <strong><?= evt_icon_html($ev['icon'] ?? null, 'evt-emoji evt-emoji--sm') ?> <?= htmlspecialchars($ev['titre']) ?></strong>
             <br><small style="color:var(--text-muted)"><?= htmlspecialchars($ev['organisateur'] ?? '') ?></small>
           </td>
           <td data-label="Date">
@@ -836,7 +764,7 @@ sort($organisateursDistincts);
                 if ($orgType && $orgId && $orgType !== 'corpo'):
               ?>
                 <a href="comptabilite.php?type=<?= urlencode($orgType) ?>&id=<?= $orgId ?>&tab=transactions&fevt=<?= (int)$ev['id'] ?>"
-                   class="btn btn--sm" style="background:rgba(46,204,113,.18);border-color:rgba(46,204,113,.5);color:#2ecc71;"
+                   class="btn btn--sm" style="background:rgba(46,204,113,.18);border-color:#2ecc71;color:#2ecc71"
                    title="Voir la comptabilité de cet événement">💰 Compta</a>
               <?php endif; ?>
               <?php $canManageEv = canManageEvenement($pdo, $ev); ?>
@@ -862,7 +790,8 @@ sort($organisateursDistincts);
         </tr>
 
         <?php if (!empty($canManageEv)): ?>
-                <tr id="edit-ev-<?= $ev['id'] ?>" class="evt-edit-row" style="display:none">
+        <!-- Édition inline -->
+        <tr id="edit-ev-<?= $ev['id'] ?>" class="evt-edit-row" style="display:none">
           <td colspan="9" style="background:rgba(255,255,255,.02);padding:var(--s5)">
             <strong style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--blue-light)">
               Modifier - <?= htmlspecialchars($ev['titre']) ?>
@@ -873,8 +802,25 @@ sort($organisateursDistincts);
 
               <div class="form-row">
                 <div class="form-col" style="flex:3"><label>Titre</label><input type="text" name="titre" value="<?= htmlspecialchars($ev['titre']) ?>" required></div>
+                <div class="form-col">
+                  <label>Icône (emoji)</label>
+                  <input type="text" name="icon" class="evt-emoji-input" value="<?= htmlspecialchars(evt_normalize_icon($ev['icon'] ?? null), ENT_QUOTES, 'UTF-8') ?>" maxlength="16" placeholder="🎉">
+                </div>
               </div>
-              <?php evt_admin_media_fields('evt-icon-edit-' . (int)$ev['id'], $ev['icon'] ?? '🎉', $ev['banniere'] ?? null); ?>
+              <div class="form-row">
+                <div class="form-col" style="flex:2">
+                  <label>Bannière</label>
+                  <?php $banPreview = evt_media_url($ev['banniere'] ?? null, '../'); ?>
+                  <?php if ($banPreview): ?>
+                    <img src="<?= htmlspecialchars($banPreview) ?>" alt="" style="display:block;max-width:220px;max-height:80px;object-fit:cover;border-radius:8px;margin-bottom:.5rem">
+                  <?php endif; ?>
+                  <input type="file" name="banniere_file" accept="image/jpeg,image/png,image/webp,image/gif">
+                </div>
+                <div class="form-col" style="flex:2">
+                  <label>ou URL</label>
+                  <input type="url" name="banniere_url" value="<?= !empty($ev['banniere']) && preg_match('#^https?://#i', (string)$ev['banniere']) ? htmlspecialchars($ev['banniere']) : '' ?>" placeholder="https://…">
+                </div>
+              </div>
 
               <div class="form-row">
                 <div class="form-col"><label>Date début</label><input type="date" name="date" value="<?= $ev['date'] ?>" required></div>
@@ -917,13 +863,6 @@ sort($organisateursDistincts);
                   </select>
                 </div>
               </div>
-
-              <?php
-                $edStType = (string)($ev['structure_type'] ?? 'asso');
-                $edStId   = (int)($ev['structure_id'] ?? 0) ?: null;
-                if ($edStType === 'corpo') { $edStId = null; }
-                evt_admin_access_fields('edit-' . (int)$ev['id'], $edStType, $edStId, $ev);
-              ?>
 
               <div class="form-row">
                 <div class="form-col" style="flex:2">
@@ -1046,25 +985,12 @@ sort($organisateursDistincts);
 ], JSON_UNESCAPED_UNICODE) ?></script>
 
 <script>
-
+// select structures
 const evtAssos  = <?= json_encode(array_map(fn($a) => ['id'=>$a['id'],'nom'=>$a['nom'],'ecole'=>$a['ecole']], $assos)) ?>;
 const evtSports = <?= json_encode(array_map(fn($s) => ['id'=>$s['id'],'nom'=>$s['nom']], $sports)) ?>;
 
-function syncEvtAccessRow(typeSelect) {
-    const form = typeSelect.closest('form') || document.getElementById('evt-add-form');
-    if (!form) return;
-    const row = form.querySelector('.evt-access-row');
-    if (!row) return;
-    const type = typeSelect.value || 'corpo';
-    const structSel = form.querySelector('[name="structure_id"]');
-    const structId = structSel ? parseInt(structSel.value || '0', 10) : 0;
-    const isCorpo = type === 'corpo' || !structId;
-    row.hidden = isCorpo;
-}
 function syncEvtStructList(type) {
     const sel = document.getElementById('evtStructList');
-    const typeSel = document.getElementById('evtTypeSelect');
-    if (typeSel) syncEvtAccessRow(typeSel);
     if (type !== 'corpo') {
         const list = type === 'sport' ? evtSports : evtAssos;
         sel.innerHTML = list.map(i =>
@@ -1076,8 +1002,6 @@ function syncEvtStructList(type) {
 }
 function syncEvtStructListEdit(type, evId) {
     const sel = document.getElementById('evtStructList-' + evId);
-    const typeSel = document.getElementById('evtTypeSelect-' + evId);
-    if (typeSel) syncEvtAccessRow(typeSel);
     if (type !== 'corpo') {
         const list = type === 'sport' ? evtSports : evtAssos;
         sel.innerHTML = list.map(i =>
@@ -1088,13 +1012,14 @@ function syncEvtStructListEdit(type, evId) {
     }
 }
 
+// affiche/masque les champs selon le mode d'inscription
 function onModeInscChange(modeValue) {
     const v = modeValue || (document.querySelector('input[name="mode_inscription"]:checked') || {}).value || 'aucune';
     document.querySelectorAll('#evt-add-form [data-show-for]').forEach(el => {
         const list = (el.dataset.showFor || '').split(',');
         el.style.display = list.includes(v) ? '' : 'none';
     });
-
+    // Marque visuellement la carte sélectionnée
     document.querySelectorAll('#evt-add-form .evt-insc-mode-card').forEach(card => {
         const inp = card.querySelector('input[type="radio"]');
         card.classList.toggle('is-selected', inp && inp.checked);
@@ -1112,6 +1037,7 @@ function onModeInscChangeEdit(sel) {
     });
 }
 
+// coche/décoche toutes les écoles d'un coup
 function toggleToutEcoles(cb) {
     document.querySelectorAll('.ecole-cb input').forEach(i => {
         i.disabled = cb.checked;
@@ -1125,6 +1051,7 @@ function toggleToutEcolesEdit(cb, evId) {
     });
 }
 
+// ouvre/ferme le formulaire d'édition inline
 function toggleEdit(id) {
     const row = document.getElementById('edit-' + id);
     if (!row) return;
@@ -1134,6 +1061,7 @@ function toggleEdit(id) {
     if (isHidden) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// mini calendrier pour aider à planifier les événements
 (function () {
   const data = JSON.parse(document.getElementById('evt-data').textContent);
   const EVENTS = data.events;
@@ -1152,7 +1080,12 @@ function toggleEdit(id) {
 
   let cursor = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
 
-  function ymd(d) { return d.toISOString().slice(0, 10); }
+  function ymd(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const j = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${j}`;
+  }
   function parseYMD(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
   function inRange(date, s, e) { const t = date.getTime(); return t >= parseYMD(s).getTime() && t <= parseYMD(e).getTime(); }
 
@@ -1212,6 +1145,7 @@ function toggleEdit(id) {
       const list = document.createElement('div');
       list.className = 'adcal-cell__events';
 
+      // D'abord les périodes scolaires (en arrière-plan)
       cals.slice(0, 2).forEach(c => {
         const bar = document.createElement('div');
         const isStart = ymd(date) === c.date_debut;
@@ -1227,6 +1161,7 @@ function toggleEdit(id) {
         list.appendChild(bar);
       });
 
+      // Puis les événements (en couleur "événement" violet)
       evs.slice(0, 3).forEach(e => {
         const bar = document.createElement('div');
         bar.className = 'adcal-event evt-pill';
@@ -1257,13 +1192,14 @@ function toggleEdit(id) {
     dateInp.value = ymd(date);
     if (!dateFinInp.value || dateFinInp.value < dateInp.value) dateFinInp.value = '';
     refreshContext();
-
+    // Re-render pour marquer la cellule sélectionnée
     grid.querySelectorAll('.adcal-cell').forEach(c => c.classList.remove('is-selected'));
     const target = grid.querySelector('.adcal-cell[data-date="' + dateInp.value + '"]');
     if (target) target.classList.add('is-selected');
     dateInp.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
+  /* Bandeau de contexte sous les dates */
   function refreshContext() {
     if (!dateInp.value) { ctx.hidden = true; ctx.innerHTML = ''; return; }
     const d = parseYMD(dateInp.value);
@@ -1333,36 +1269,13 @@ function toggleEdit(id) {
   dateFinInp.addEventListener('change', refreshContext);
 
   document.addEventListener('DOMContentLoaded', () => {
-    const typeSel = document.getElementById('evtTypeSelect');
-    syncEvtStructList(typeSel ? typeSel.value : 'corpo');
-    if (typeSel) {
-      typeSel.addEventListener('change', () => syncEvtAccessRow(typeSel));
-      const structSel = document.getElementById('evtStructList');
-      if (structSel) structSel.addEventListener('change', () => syncEvtAccessRow(typeSel));
-    }
+    syncEvtStructList(document.getElementById('evtTypeSelect').value);
     onModeInscChange();
   });
   render();
 })();
 
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('.evt-icon-btn');
-  if (!btn) return;
-  const picker = btn.closest('.evt-icon-picker');
-  if (!picker) return;
-  const input = picker.querySelector('.evt-icon-input');
-  const preview = picker.querySelector('.evt-icon-preview');
-  const emo = btn.dataset.emoji || btn.textContent.trim();
-  if (input) input.value = emo;
-  if (preview) preview.textContent = emo;
-});
-document.addEventListener('input', (e) => {
-  if (!e.target.classList.contains('evt-icon-input')) return;
-  const picker = e.target.closest('.evt-icon-picker');
-  const preview = picker?.querySelector('.evt-icon-preview');
-  if (preview) preview.textContent = e.target.value || '🎉';
-});
-
+// filtres du tableau
 (function () {
   const q       = document.getElementById('list-q');
   const fType   = document.getElementById('list-type');
@@ -1371,7 +1284,12 @@ document.addEventListener('input', (e) => {
   const fStatut = document.getElementById('list-statut');
   const reset   = document.getElementById('list-reset');
   const today   = new Date(); today.setHours(0,0,0,0);
-  const todayStr = today.toISOString().slice(0, 10);
+  const todayStr = (() => {
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const j = String(today.getDate()).padStart(2, '0');
+    return `${y}-${m}-${j}`;
+  })();
 
   function apply() {
     const ql = (q.value || '').trim().toLowerCase();

@@ -8,6 +8,9 @@ $pageStyles = ['css/guide-page.css'];
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/header.php';
 
+/**
+ * Icônes stroke (24×24) - alignées sur les piliers « À propos ».
+ */
 function guide_icon_svg(string $name): string {
     $a = 'width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"';
     return match ($name) {

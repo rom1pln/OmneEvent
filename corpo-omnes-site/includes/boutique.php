@@ -1,4 +1,5 @@
 <?php
+// gestion du panier et des commandes boutique - même système de paiement que la billetterie
 
 require_once __DIR__ . '/env.php';
 require_once __DIR__ . '/paiements.php';
@@ -76,6 +77,7 @@ function boutique_cart_clear(): void {
     boutique_cart_set([]);
 }
 
+// on vérifie que les produits du panier sont dispo et en stock
 function boutique_cart_validate(PDO $pdo, array $cart): array {
     if (empty($cart)) {
         return ['ok' => false, 'msg' => 'Panier vide.'];
@@ -124,6 +126,7 @@ function boutique_order_public_url(int $commandeId): string {
     return corpo_mail_app_url('boutique.php?order=' . $commandeId);
 }
 
+// calcule le total à payer avec ou sans frais prestataire
 function boutique_compute_payment_amounts(array $lignes): array {
     $subtotal = 0.0;
     foreach ($lignes as $ln) {
@@ -156,6 +159,12 @@ function boutique_compute_payment_amounts(array $lignes): array {
     ];
 }
 
+/**
+ * Crée la commande + lignes, lance le checkout (ou finalise si gratuit).
+ *
+ * @param array<int,array<string,mixed>> $lignes
+ * @return array{ok:bool, redirect?:string, msg?:string, order_id?:int}
+ */
 function boutique_create_checkout(PDO $pdo, array $lignes, string $email, string $nom, string $prenom, ?int $userId): array {
     $email = trim($email);
     $nom   = trim($nom);
@@ -270,8 +279,14 @@ function boutique_create_checkout(PDO $pdo, array $lignes, string $email, string
     return ['ok' => true, 'redirect' => $redirectUrl, 'order_id' => $orderId];
 }
 
+/**
+ * Liste produits publiés (catalogue).
+ *
+ * @param array{ecole?:string,asso?:int,pmin?:float,pmax?:float,taille?:string,categorie?:string,q?:string,tri?:string} $filters
+ * @return array<int,array<string,mixed>>
+ */
 function boutique_catalog_list(PDO $pdo, array $filters): array {
-
+    // Catalogue : tous les articles publiés (y compris stock 0 → affichage « rupture », pas d’achat)
     $where = ["p.statut = 'publie'"];
     $params = [];
     if (!empty($filters['ecole'])) {
@@ -320,6 +335,7 @@ function boutique_catalog_list(PDO $pdo, array $filters): array {
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+/** @return string[] */
 function boutique_catalog_distinct_ecoles(PDO $pdo): array {
     $st = $pdo->query(
         "SELECT DISTINCT a.ecole FROM boutique_produits p
@@ -330,6 +346,9 @@ function boutique_catalog_distinct_ecoles(PDO $pdo): array {
     return $st ? array_values(array_filter($st->fetchAll(PDO::FETCH_COLUMN) ?: [])) : [];
 }
 
+/**
+ * @return array<int,array{id:int,nom:string}>
+ */
 function boutique_catalog_assos_for_ecole(PDO $pdo, ?string $ecole): array {
     $sql = "SELECT DISTINCT a.id, a.nom FROM boutique_produits p
             JOIN associations a ON a.id = p.structure_id
@@ -345,6 +364,7 @@ function boutique_catalog_assos_for_ecole(PDO $pdo, ?string $ecole): array {
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+/** @return string[] */
 function boutique_catalog_distinct_tailles(PDO $pdo): array {
     $st = $pdo->query(
         "SELECT DISTINCT p.taille FROM boutique_produits p
@@ -354,6 +374,7 @@ function boutique_catalog_distinct_tailles(PDO $pdo): array {
     return $st ? array_values(array_filter($st->fetchAll(PDO::FETCH_COLUMN) ?: [])) : [];
 }
 
+/** @return string[] */
 function boutique_catalog_distinct_categories(PDO $pdo): array {
     $st = $pdo->query(
         "SELECT DISTINCT p.categorie FROM boutique_produits p
@@ -363,6 +384,9 @@ function boutique_catalog_distinct_categories(PDO $pdo): array {
     return $st ? array_values(array_filter($st->fetchAll(PDO::FETCH_COLUMN) ?: [])) : [];
 }
 
+/**
+ * Finalise une commande payée (stock + statut + mail). Idempotent.
+ */
 function boutique_finalize_order_paid(PDO $pdo, int $commandeId): void {
     $pdo->beginTransaction();
     try {
@@ -402,6 +426,7 @@ function boutique_finalize_order_paid(PDO $pdo, int $commandeId): void {
         throw $e;
     }
 
+    // Mail de confirmation (hors transaction)
     $c2 = $pdo->prepare('SELECT * FROM boutique_commandes WHERE id = ?');
     $c2->execute([$commandeId]);
     $cmd = $c2->fetch(PDO::FETCH_ASSOC);
@@ -456,6 +481,9 @@ function boutique_finalize_order_paid(PDO $pdo, int $commandeId): void {
     compta_try_auto_import_boutique_commande($pdo, $commandeId);
 }
 
+/**
+ * Traite un webhook SumUp / Stripe pour une commande boutique (retour true si géré).
+ */
 function boutique_webhook_process(PDO $pdo, string $providerRef, string $providerHint): bool {
     $st = $pdo->prepare('SELECT * FROM boutique_commandes WHERE provider_ref = ? LIMIT 1');
     $st->execute([$providerRef]);
@@ -490,6 +518,9 @@ function boutique_webhook_process(PDO $pdo, string $providerRef, string $provide
     return true;
 }
 
+/**
+ * Après retour utilisateur : vérifie le paiement et finalise si besoin.
+ */
 function boutique_poll_order_payment(PDO $pdo, int $commandeId, bool $forceMockPaid): array {
     $st = $pdo->prepare('SELECT * FROM boutique_commandes WHERE id = ? LIMIT 1');
     $st->execute([$commandeId]);
@@ -540,6 +571,11 @@ function boutique_poll_order_payment(PDO $pdo, int $commandeId, bool $forceMockP
     return ['state' => 'pending'];
 }
 
+/**
+ * Commandes boutique du compte : user_id renseigné à l’achat, ou invité avec le même email que le profil.
+ *
+ * @return array<int, array<string, mixed>>
+ */
 function boutique_orders_list_for_user(PDO $pdo, int $userId): array {
     if (!boutique_db_ready($pdo)) {
         return [];
@@ -556,8 +592,16 @@ function boutique_orders_list_for_user(PDO $pdo, int $userId): array {
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+/** Statuts boutique_commandes.statut (admin + logique paiement). */
 const BOUTIQUE_COMMANDE_STATUTS = ['init', 'en_attente', 'paye', 'echec', 'annule'];
 
+/**
+ * Liste des commandes boutique pour l’admin (Corpo : toutes ; sinon commandes touchant une asso du périmètre).
+ *
+ * @param array<int,int> $allowedAssoIds IDs associations gérées (comme admin/boutique.php)
+ * @param int            $filterAssoId   >0 : uniquement commandes ayant une ligne pour cette asso
+ * @return array<int, array<string, mixed>>
+ */
 function boutique_orders_list_for_admin(PDO $pdo, bool $isCorpo, array $allowedAssoIds, int $filterAssoId = 0): array {
     if (!boutique_db_ready($pdo)) {
         return [];
@@ -605,6 +649,12 @@ function boutique_orders_list_for_admin(PDO $pdo, bool $isCorpo, array $allowedA
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
 
+/**
+ * Met à jour le statut d’une commande (périmètre identique à la consultation détail).
+ *
+ * @param array<int,int> $allowedAssoIds
+ * @return array{ok:bool, msg?:string}
+ */
 function boutique_order_admin_set_statut(PDO $pdo, int $orderId, string $statut, bool $isCorpo, array $allowedAssoIds): array {
     if (!boutique_db_ready($pdo) || $orderId <= 0) {
         return ['ok' => false, 'msg' => 'Commande invalide.'];
@@ -621,6 +671,12 @@ function boutique_order_admin_set_statut(PDO $pdo, int $orderId, string $statut,
     return ['ok' => true];
 }
 
+/**
+ * Détail commande + lignes pour l’admin. null si inexistante ou hors périmètre.
+ *
+ * @param array<int,int> $allowedAssoIds
+ * @return array{commande: array<string, mixed>, lignes: array<int, array<string, mixed>>, lignes_autres_structures: int}|null
+ */
 function boutique_order_admin_detail(PDO $pdo, int $orderId, bool $isCorpo, array $allowedAssoIds): ?array {
     if (!boutique_db_ready($pdo) || $orderId <= 0) {
         return null;

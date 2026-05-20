@@ -1,9 +1,5 @@
 <?php
-/**
- * mes-evenements.php
- * Les évenements de l'utilisateur : inscrits + événements de ses structures.
- * Faut étre connecté évidemment.
- */
+// événements de l'user : ses inscriptions + events de ses structures
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/i18n.php';
@@ -18,6 +14,7 @@ if (!isLoggedIn()) {
 $userId = (int)$_SESSION['user_id'];
 $now    = date('Y-m-d');
 
+// events où l'user est inscrit
 $stmtInscrits = $pdo->prepare(
     "SELECT e.*, ie.statut AS insc_statut, ie.created_at AS insc_date,
             COALESCE(s.nom, a.nom, 'Corpo Omnes') AS source_nom,
@@ -32,6 +29,7 @@ $stmtInscrits = $pdo->prepare(
 $stmtInscrits->execute([$userId]);
 $evtsInscrits = $stmtInscrits->fetchAll();
 
+// events des assos de l'user
 $stmtAsso = $pdo->prepare(
     "SELECT DISTINCT e.*, 'confirme' AS insc_statut, NULL AS insc_date,
             a.nom AS source_nom, sm.structure_type AS source_type
@@ -47,6 +45,7 @@ $stmtAsso = $pdo->prepare(
 $stmtAsso->execute([$userId, $now, $userId]);
 $evtsAsso = $stmtAsso->fetchAll();
 
+// events des sports de l'user
 $stmtSport = $pdo->prepare(
     "SELECT DISTINCT e.*, 'confirme' AS insc_statut, NULL AS insc_date,
             sp.nom AS source_nom, 'sport' AS source_type
@@ -62,6 +61,7 @@ $stmtSport = $pdo->prepare(
 $stmtSport->execute([$userId, $now, $userId]);
 $evtsSport = $stmtSport->fetchAll();
 
+// sépare à venir vs passés
 $aVenir = array_filter($evtsInscrits, fn($e) => $e['date'] >= $now);
 $passes = array_filter($evtsInscrits, fn($e) => $e['date'] < $now);
 
@@ -102,7 +102,7 @@ function renderEventCard(array $ev, bool $showInscBadge = true): void {
       </div>
       <div class="mes-evt-card__actions">
         <?php if ($showInscBadge && in_array($statut, ['confirme', 'en_attente'], true)): ?>
-          <a href="api/event-ics.php?id=<?= (int)$ev['id'] ?>" class="btn btn--ghost btn--sm" download title="<?= htmlspecialchars(corpo_t('mes_evt.btn_ics_title')) ?>">📅 <?= htmlspecialchars(corpo_t('mes_evt.btn_ics')) ?></a>
+          <a href="api/event-ics.php?id=<?= (int)$ev['id'] ?>" class="btn btn--ghost btn--sm" download="evenement-<?= (int)$ev['id'] ?>.ics" title="<?= htmlspecialchars(corpo_t('mes_evt.btn_ics_title')) ?>">📅 <?= htmlspecialchars(corpo_t('mes_evt.btn_ics')) ?></a>
         <?php endif; ?>
         <?php if ($modeInsc === 'externe' && !empty($ev['lien_billetterie'])): ?>
           <a href="<?= htmlspecialchars($ev['lien_billetterie']) ?>" target="_blank" class="btn btn--primary btn--sm"><?= htmlspecialchars(corpo_t('mes_evt.btn_ticketing')) ?></a>
@@ -115,6 +115,7 @@ function renderEventCard(array $ev, bool $showInscBadge = true): void {
     <?php
 }
 
+// Helper mois court sans strftime (compatible PHP 8.1+)
 function strftime_compat(string $format, int $ts): string {
     if ($format === '%b') {
         return corpo_month_abbr((int)date('n', $ts));

@@ -1,15 +1,12 @@
 <?php
-/**
- * admin/comptabilite.php
- * Comptabilité d'une structure : journal de transactions, soldes, comptes,
- * catégories, lien optionnel à un événement.
- *
- * Périmètre identique à mes-membres.php :
- *  - admin Corpo / super_admin → toutes les structures
- *  - admin BDE → son BDE + ses assos enfants + sports
- *  - admin BDS → son BDS + sports
- *  - admin Asso → son asso uniquement
- */
+// comptabilité d'une structure - transactions, comptes, catégories
+// Affichage des erreurs (temporaire - retire `display_errors` une fois stable en prod).
+// Sur InfinityFree/42web.io, un 500 répété peut déclencher leur "surge protection" :
+// si tu vois "ne peut pas traiter cette demande pour le moment", attends 1-2 min entre 2 tests.
+@ini_set('display_errors', '1');
+@ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
+
 // On installe un gestionnaire d'erreurs global avant tout require pour ne plus jamais avoir un écran blanc / 500 muet
 set_exception_handler(function (Throwable $e) {
     while (ob_get_level() > 0) { @ob_end_clean(); }
@@ -55,7 +52,7 @@ if (!$comptaReady) {
     echo '<h1 class="admin-page-title">Comptabilité</h1>';
     echo '<div class="flash flash--warn" style="margin-bottom:var(--s4)">';
     echo '<strong>Tables comptabilité absentes.</strong> Avant d\'utiliser cette page, applique les migrations DB '
-       . '(<code>compta_comptes</code>, <code>compta_categories</code>, <code>compta_transactions</code>).';
+       . '(<code>tbl_compta_comptes</code>, <code>tbl_compta_categories</code>, <code>tbl_compta_transactions</code>).';
     echo '</div>';
     echo '<a href="migrate.php" class="btn btn--primary">→ Aller sur Migrations DB</a>';
     require_once __DIR__ . '/includes/admin-footer.php';
@@ -63,6 +60,7 @@ if (!$comptaReady) {
 }
 
 
+// on construit la liste des structures accessibles
 $mesStructures = [];
 $seen = [];
 $addStruct = function(string $type, int $id, string $nom = '', string $slug = '') use (&$mesStructures, &$seen) {
@@ -165,7 +163,7 @@ if (!$canManage) {
     exit;
 }
 
-
+// actions POST - après traitement on redirige toujours
 $flash = '';
 $flashType = 'ok';
 
@@ -180,6 +178,7 @@ function compta_redirect(string $type, int $id, string $tab = '', string $msg = 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $act = $_POST['action'] ?? '';
 
+    // ajout ou modif d'une transaction
     if ($act === 'tx_save') {
         $txId        = (int)($_POST['tx_id'] ?? 0);
         $type        = in_array($_POST['type'] ?? '', ['recette','depense'], true) ? $_POST['type'] : 'depense';
@@ -227,6 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         compta_redirect($selType, $selId, 'transactions', 'Transaction supprimée.');
     }
 
+    // gestion des comptes
     if ($act === 'compte_save') {
         $cid       = (int)($_POST['compte_id'] ?? 0);
         $nom       = trim($_POST['nom'] ?? '');
@@ -252,6 +252,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         compta_redirect($selType, $selId, 'comptes', 'Statut du compte modifié.');
     }
 
+    // gestion des catégories
     if ($act === 'cat_save') {
         $cid     = (int)($_POST['cat_id'] ?? 0);
         $nom     = trim($_POST['nom'] ?? '');
@@ -276,6 +277,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         compta_redirect($selType, $selId, 'categories', 'Catégorie modifiée.');
     }
 
+    // saisie rapide d'une transaction
     if ($act === 'tx_quick') {
         $type    = in_array($_POST['type'] ?? '', ['recette', 'depense'], true) ? $_POST['type'] : 'depense';
         $montant = max(0, (float)str_replace(',', '.', $_POST['montant'] ?? '0'));
@@ -297,6 +299,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         compta_redirect($selType, $selId, 'transactions', 'Écriture enregistrée.');
     }
 
+    // import des paiements billetterie/boutique vers la compta
     if ($act === 'sync_billet') {
         $pid = (int)($_POST['paiement_id'] ?? 0);
         $r   = compta_import_billetterie($pdo, $pid, $userId);
@@ -356,7 +359,7 @@ if (isset($_GET['msg'])) {
     $flashType = ($_GET['kind'] ?? 'ok') === 'err' ? 'err' : 'ok';
 }
 
-
+// filtres et chargement des données pour la vue
 $activeTab = $_GET['tab'] ?? 'dashboard';
 if (!in_array($activeTab, ['dashboard','encaissements','transactions','comptes','categories','notes_frais'], true)) {
     $activeTab = 'dashboard';
@@ -595,6 +598,7 @@ foreach ($mesStructures as $ms) {
     if ($ms['type'] === $selType && (int)$ms['id'] === $selId) { $selNom = $ms['nom']; break; }
 }
 
+// Helpers
 function fmt_euro($v): string { return number_format((float)$v, 2, ',', ' ') . ' €'; }
 $typeLabels = ['bde' => 'BDE', 'bds' => 'BDS', 'asso' => 'Association', 'sport' => 'Sport'];
 
@@ -606,6 +610,7 @@ if (!empty($_GET['edit'])) {
     $editTx = $stmt->fetch() ?: null;
 }
 
+// rendu HTML
 require_once __DIR__ . '/includes/admin-header.php';
 ?>
 

@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+// gestion de la langue (cookie FR/EN)
 
 const CORPO_LANG_COOKIE = 'corpo_lang';
 const CORPO_LANG_ALLOWED = ['fr', 'en'];
@@ -13,7 +14,7 @@ function corpo_set_lang_cookie(string $lang): void {
     if (!in_array($lang, CORPO_LANG_ALLOWED, true)) {
         return;
     }
-    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    $secure = function_exists('is_https_request') ? is_https_request() : (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
     setcookie(CORPO_LANG_COOKIE, $lang, [
         'expires'  => time() + 365 * 24 * 3600,
         'path'     => '/',
@@ -25,7 +26,7 @@ function corpo_set_lang_cookie(string $lang): void {
 }
 
 function corpo_clear_lang_cookie(): void {
-    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    $secure = function_exists('is_https_request') ? is_https_request() : (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
     setcookie(CORPO_LANG_COOKIE, '', [
         'expires'  => time() - 3600,
         'path'     => '/',
@@ -36,6 +37,7 @@ function corpo_clear_lang_cookie(): void {
     unset($_COOKIE[CORPO_LANG_COOKIE]);
 }
 
+// prénom ou username pour les messages
 function corpo_user_display_name(): string {
     $p = trim((string)($_SESSION['user_prenom'] ?? ''));
     if ($p !== '') {
@@ -45,6 +47,7 @@ function corpo_user_display_name(): string {
     return $u !== '' ? $u : '';
 }
 
+// strings de la page login selon la langue
 function corpo_login_strings(string $lang): array {
     if ($lang === 'en') {
         return [
@@ -92,6 +95,7 @@ function corpo_login_strings(string $lang): array {
     ];
 }
 
+// strings du coin user (bonjour / déco)
 function corpo_corner_strings(string $lang): array {
     if ($lang === 'en') {
         return [
@@ -105,6 +109,7 @@ function corpo_corner_strings(string $lang): array {
     ];
 }
 
+// dictionnaire du site selon la langue
 function corpo_site_dict(string $lang): array {
     static $cache = ['fr' => null, 'en' => null];
     if ($cache[$lang] === null) {
@@ -127,6 +132,7 @@ function corpo_t(string $key): string {
     return $fallback[$key] ?? $key;
 }
 
+// noms de mois 1-12 selon la langue
 function corpo_month_names_full(): array {
     if (corpo_current_lang() === 'en') {
         return [
@@ -140,6 +146,7 @@ function corpo_month_names_full(): array {
     ];
 }
 
+/** Abréviations 3 lettres pour calendrier / cartes */
 function corpo_month_abbr(int $month): string {
     $m = max(1, min(12, $month));
     if (corpo_current_lang() === 'en') {
@@ -150,6 +157,48 @@ function corpo_month_abbr(int $month): string {
     return $a[$m];
 }
 
+// noms de jours complets (ISO 1=lundi, 7=dimanche)
+function corpo_weekday_names_full(): array
+{
+    if (corpo_current_lang() === 'en') {
+        return [
+            1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday',
+            5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday',
+        ];
+    }
+    return [
+        1 => 'lundi', 2 => 'mardi', 3 => 'mercredi', 4 => 'jeudi',
+        5 => 'vendredi', 6 => 'samedi', 7 => 'dimanche',
+    ];
+}
+
+// date longue localisée ex. "lundi 15 janvier 2026"
+function corpo_format_date_long(string $dateYmd, bool $ucfirst = true): string
+{
+    try {
+        $dt = new DateTime($dateYmd);
+    } catch (Throwable $e) {
+        return $dateYmd;
+    }
+    $wd = (int)$dt->format('N');
+    $day = (int)$dt->format('j');
+    $months = corpo_month_names_full();
+    $month = $months[(int)$dt->format('n')] ?? $dt->format('F');
+    $year = $dt->format('Y');
+    $weekdays = corpo_weekday_names_full();
+
+    if (corpo_current_lang() === 'en') {
+        $s = ($weekdays[$wd] ?? '') . ', ' . $month . ' ' . $day . ', ' . $year;
+    } else {
+        $s = ($weekdays[$wd] ?? '') . ' ' . $day . ' ' . mb_strtolower($month, 'UTF-8') . ' ' . $year;
+    }
+    if (!$ucfirst || $s === '') {
+        return $s;
+    }
+    return mb_strtoupper(mb_substr($s, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($s, 1, null, 'UTF-8');
+}
+
+// labels courts pour le calendrier (lun-dim)
 function corpo_weekday_short_labels(): array {
     if (corpo_current_lang() === 'en') {
         return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

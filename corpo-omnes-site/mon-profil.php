@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * mon-profil.php - Infos compte et mises à jour (connecté uniquement)
+ */
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/db.php';
 require_once __DIR__ . '/includes/i18n.php';

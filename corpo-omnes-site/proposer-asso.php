@@ -1,10 +1,13 @@
 <?php
+// formulaire de proposition d'asso (connecté uniquement)
+// insère dans demandes_validation type='nouvelle_asso'
 
 $title = 'Proposer une association';
 $page  = 'proposer-asso';
 require_once 'includes/db.php';
 require_once 'includes/auth.php';
 
+// Connexion obligatoire
 if (!isLoggedIn()) {
     $_SESSION['redirect_after_login'] = 'proposer-asso.php';
     header('Location: admin/login.php');
@@ -29,6 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $contactNom = trim($post['contact_nom']  ?? '');
     $contactMail= trim($post['contact_mail'] ?? '');
 
+    // Validations
     if (mb_strlen($nomAsso) < 2)       $errors[] = 'Le nom de l\'association est requis (2 caractères min).';
     if (!in_array($typeAsso, $types))   $errors[] = 'Type de structure invalide.';
     if (!in_array($ecoleAsso, $ecoles)) $errors[] = 'École invalide.';
@@ -42,6 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $userId = (int)($_SESSION['user_id'] ?? 0);
 
+            // Données JSON résumant la proposition
             $payload = json_encode([
                 'nom'         => $nomAsso,
                 'type'        => $typeAsso,
@@ -112,6 +117,7 @@ require_once 'includes/header.php';
         <div class="pa-card">
           <form method="post" novalidate>
 
+            <!-- ── Informations sur l'association ────────── -->
             <p class="pa-section-label">L'association</p>
 
             <div class="pa-field">
@@ -166,6 +172,7 @@ require_once 'includes/header.php';
                         placeholder="Explique pourquoi ce projet mérite d'exister…"><?= htmlspecialchars($post['motivation'] ?? '') ?></textarea>
             </div>
 
+            <!-- ── Contact porteur du projet ─────────────── -->
             <p class="pa-section-label" style="margin-top:var(--s6)">Porteur du projet</p>
 
             <div class="pa-row">
@@ -200,7 +207,7 @@ require_once 'includes/header.php';
 </main>
 
 <style>
-
+/* styles page proposer-asso */
 .pa-card {
   background: var(--surface);
   border: 1px solid var(--border);

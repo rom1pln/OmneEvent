@@ -1,0 +1,10 @@
+# Export calendrier : éviter Content-Negotiation (.ics → .ics.html sur certains hébergeurs)
+<IfModule mod_negotiation.c>
+  Options -MultiViews
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "event-ics\.php$">
+    Header set X-Content-Type-Options "nosniff"
+  </FilesMatch>
+</IfModule>

@@ -1,4 +1,5 @@
 <?php
+// wrapper Stripe Checkout - si pas de clé API dans le .env, on bascule en mock (pratique pour tester)
 
 require_once __DIR__ . '/env.php';
 
@@ -12,6 +13,7 @@ function stripe_mode(): string {
 }
 
 function stripe_create_checkout(float $amount, string $reference, string $email, string $description, string $returnUrl): array {
+    // mode mock si pas de clé Stripe
     if (stripe_is_mock()) {
         $fakeId = 'cs_mock_' . bin2hex(random_bytes(8));
         $sep    = str_contains($returnUrl, '?') ? '&' : '?';
@@ -24,11 +26,13 @@ function stripe_create_checkout(float $amount, string $reference, string $email,
         ];
     }
 
+    // appel API Stripe réel
     $apiKey = (string)corpo_env('STRIPE_SECRET_KEY');
     $sep    = str_contains($returnUrl, '?') ? '&' : '?';
     $success = $returnUrl . $sep . 'stripe=1';
     $cancel  = $returnUrl . $sep . 'stripe=cancel';
 
+    // Nettoyage référence (alphanum + _- only, max 200 char pour Stripe)
     $cleanRef = preg_replace('/[^A-Za-z0-9_\-]/', '-', $reference);
     if (strlen($cleanRef) > 200) {
         $cleanRef = substr($cleanRef, 0, 200);
@@ -85,6 +89,7 @@ function stripe_create_checkout(float $amount, string $reference, string $email,
     ];
 }
 
+// retourne le statut d'une session Stripe
 function stripe_get_session_status(string $sessionId): string {
     if (stripe_is_mock() || str_starts_with($sessionId, 'cs_mock_')) {
         return 'paid';
